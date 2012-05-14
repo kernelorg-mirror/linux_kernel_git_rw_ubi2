@@ -389,16 +389,9 @@ struct ubi_vtbl_record {
 #define UBI_FM_POOL_MAGIC	0x67AF4D08
 #define UBI_FM_EBA_MAGIC	0xf0c040a8
 
-/* Semi-sane default values - TBR */
-#ifndef UBI_FM_MAX_POOL_SIZE
-#define UBI_FM_MAX_POOL_SIZE	128
-#endif
-#ifndef UBI_FM_MAX_BLOCKS
-#define UBI_FM_MAX_BLOCKS	32
-#endif
-#ifndef UBI_FM_MAX_START
-#define UBI_FM_MAX_START	64
-#endif
+#define UBI_FM_MAX_START	CONFIG_MTD_UBI_FM_SB_POS
+#define UBI_FM_MAX_BLOCKS	CONFIG_MTD_UBI_FM_MAX_SIZE
+#define UBI_FM_MAX_POOL_SIZE	CONFIG_MTD_UBI_FM_POOL_SIZE
 
 /**
  * struct ubi_fm_sb - UBI fastmap super block
