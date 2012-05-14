@@ -624,10 +624,14 @@ int ubi_enumerate_volumes(struct notifier_block *nb);
 void ubi_do_get_device_info(struct ubi_device *ubi, struct ubi_device_info *di);
 void ubi_do_get_volume_info(struct ubi_device *ubi, struct ubi_volume *vol,
 			    struct ubi_volume_info *vi);
-
 /* scan.c */
 int ubi_compare_lebs(struct ubi_device *ubi, const struct ubi_scan_leb *seb,
 		      int pnum, const struct ubi_vid_hdr *vid_hdr);
+
+/* fastmap.c */
+int ubi_update_fastmap(struct ubi_device *ubi);
+struct ubi_scan_info *ubi_read_fastmap(struct ubi_device *ubi, int fm_sb_pnum);
+int ubi_find_fastmap(struct ubi_device *ubi);
 
 /*
  * ubi_rb_for_each_entry - walk an RB-tree.
