@@ -586,6 +586,9 @@ int ubi_wl_scrub_peb(struct ubi_device *ubi, int pnum);
 int ubi_wl_init_scan(struct ubi_device *ubi, struct ubi_scan_info *si);
 void ubi_wl_close(struct ubi_device *ubi);
 int ubi_thread(void *u);
+int ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum);
+int ubi_wl_put_fm_peb(struct ubi_device *ubi, int pnum, int torture);
+int ubi_is_fm_block(struct ubi_device *ubi, int pnum);
 
 /* io.c */
 int ubi_io_read(const struct ubi_device *ubi, void *buf, int pnum, int offset,
