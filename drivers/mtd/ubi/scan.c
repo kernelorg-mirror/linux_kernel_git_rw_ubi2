@@ -1014,8 +1014,9 @@ static int process_eb(struct ubi_device *ubi, struct ubi_scan_info *si,
 
 	if (vol_id > UBI_MAX_VOLUMES &&
 		vol_id != UBI_LAYOUT_VOLUME_ID &&
-		vol_id != UBI_FM_SB_VOLUME_ID &&
-		vol_id != UBI_FM_DATA_VOLUME_ID) {
+		((vol_id != UBI_FM_SB_VOLUME_ID &&
+		vol_id != UBI_FM_DATA_VOLUME_ID) ||
+		ubi->attached_by_scanning == true)) {
 		int lnum = be32_to_cpu(vidh->lnum);
 
 		/* Unsupported internal volume */

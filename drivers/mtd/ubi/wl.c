@@ -393,7 +393,6 @@ static struct ubi_wl_entry *find_wl_entry(struct rb_root *root, int diff)
 }
 
 /**
- * ubi_wl_get_peb - get a physical eraseblock.
  * find_early_wl_entry - find wear-leveling entry with a low pnum.
  * @root: the RB-tree where to look for
  * @max_pnum: highest possible pnum
@@ -451,12 +450,13 @@ out:
 }
 
 /**
+ * __ubi_wl_get_peb - get a physical eraseblock.
  * @ubi: UBI device description object
  *
  * This function returns a physical eraseblock in case of success and a
  * negative error code in case of failure. Might sleep.
  */
-int ubi_wl_get_peb(struct ubi_device *ubi)
+static int __ubi_wl_get_peb(struct ubi_device *ubi)
 {
 	int err;
 	struct ubi_wl_entry *e, *first, *last;
@@ -505,6 +505,34 @@ retry:
 	}
 
 	return e->pnum;
+}
+
+/* ubi_wl_get_peb - works exaclty like __ubi_wl_get_peb but keeps track of
+ * the fastmap pool.
+ */
+int ubi_wl_get_peb(struct ubi_device *ubi)
+{
+	struct ubi_fm_pool *pool = &ubi->fm_pool;
+
+	/* pool contains no free blocks, create a new one
+	 * and write a fastmap */
+	if (pool->used == pool->size || !pool->size) {
+		for (pool->size = 0; pool->size < pool->max_size;
+				pool->size++) {
+			pool->pebs[pool->size] = __ubi_wl_get_peb(ubi);
+			if (pool->pebs[pool->size] < 0)
+				break;
+		}
+
+		pool->used = 0;
+		ubi_update_fastmap(ubi);
+	}
+
+	/* we got not a single free PEB */
+	if (!pool->size)
+		return -1;
+
+	return pool->pebs[pool->used++];
 }
 
 /**
