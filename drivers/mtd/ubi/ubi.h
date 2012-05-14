@@ -576,6 +576,10 @@ void ubi_do_get_device_info(struct ubi_device *ubi, struct ubi_device_info *di);
 void ubi_do_get_volume_info(struct ubi_device *ubi, struct ubi_volume *vol,
 			    struct ubi_volume_info *vi);
 
+/* scan.c */
+int ubi_compare_lebs(struct ubi_device *ubi, const struct ubi_scan_leb *seb,
+		      int pnum, const struct ubi_vid_hdr *vid_hdr);
+
 /*
  * ubi_rb_for_each_entry - walk an RB-tree.
  * @rb: a pointer to type 'struct rb_node' to use as a loop counter
