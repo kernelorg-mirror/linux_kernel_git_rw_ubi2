@@ -42,6 +42,32 @@ config MTD_UBI_BEB_RESERVE
 	  eraseblocks (e.g. NOR flash), this value is ignored and nothing is
 	  reserved. Leave the default value if unsure.
 
+config MTD_UBI_FM_POOL_SIZE
+	int "Max number of PEBs in a fastmap pool"
+	range 10 1024
+	default 128
+	help
+	   This is the number PEBs which have to be scanned while attaching.
+	   A low value means that attaching will be faster but if the value
+	   is too small the fastmap has to be written too often.
+	   Every time the pool is full a new fastmap is written to the MTD.
+	   Choose wisely!
+
+config MTD_UBI_FM_MAX_SIZE
+	int "Maximal size of a fastmap in PEBs"
+	range 10 128
+	default 32
+	help
+	   Maximale size of a checkpoint in PEBs.
+
+config MTD_UBI_FM_SB_POS
+	int "Fastmap super block position"
+	range 4 128
+	default 64
+	help
+	   The fastmap super block will be placed within the first N PEBs.
+	   Is this value too large it takes longer to find the checkpoint.
+
 config MTD_UBI_GLUEBI
 	tristate "MTD devices emulation driver (gluebi)"
 	help

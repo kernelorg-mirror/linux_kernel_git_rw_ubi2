@@ -230,7 +230,7 @@ static int validate_vid_hdr(const struct ubi_vid_hdr *vid_hdr,
 
 bad:
 	ubi_err("inconsistent VID header at PEB %d", pnum);
-	ubi_dbg_dump_vid_hdr(vid_hdr);
+	ubi_dump_vid_hdr(vid_hdr);
 	ubi_dbg_dump_sv(sv);
 	return -EINVAL;
 }
@@ -295,7 +295,7 @@ static struct ubi_scan_volume *add_volume(struct ubi_scan_info *si, int vol_id,
 }
 
 /**
- * compare_lebs - find out which logical eraseblock is newer.
+ * ubi_compare_lebs - find out which logical eraseblock is newer.
  * @ubi: UBI device description object
  * @seb: first logical eraseblock to compare
  * @pnum: physical eraseblock number of the second logical eraseblock to
@@ -314,7 +314,7 @@ static struct ubi_scan_volume *add_volume(struct ubi_scan_info *si, int vol_id,
  *     o bit 2 is cleared: the older LEB is not corrupted;
  *     o bit 2 is set: the older LEB is corrupted.
  */
-static int compare_lebs(struct ubi_device *ubi, const struct ubi_scan_leb *seb,
+int ubi_compare_lebs(struct ubi_device *ubi, const struct ubi_scan_leb *seb,
 			int pnum, const struct ubi_vid_hdr *vid_hdr)
 {
 	void *buf;
@@ -337,7 +337,7 @@ static int compare_lebs(struct ubi_device *ubi, const struct ubi_scan_leb *seb,
 	}
 
 	/* Obviously the LEB with lower sequence counter is older */
-	second_is_newer = !!(sqnum2 > seb->sqnum);
+	second_is_newer = (sqnum2 > seb->sqnum);
 
 	/*
 	 * Now we know which copy is newer. If the copy flag of the PEB with
@@ -503,7 +503,7 @@ int ubi_scan_add_used(struct ubi_device *ubi, struct ubi_scan_info *si,
 		 * sequence numbers. We still can attach these images, unless
 		 * there is a need to distinguish between old and new
 		 * eraseblocks, in which case we'll refuse the image in
-		 * 'compare_lebs()'. In other words, we attach old clean
+		 * 'ubi_compare_lebs()'. In other words, we attach old clean
 		 * images, but refuse attaching old images with duplicated
 		 * logical eraseblocks because there was an unclean reboot.
 		 */
@@ -511,7 +511,7 @@ int ubi_scan_add_used(struct ubi_device *ubi, struct ubi_scan_info *si,
 			ubi_err("two LEBs with same sequence number %llu",
 				sqnum);
 			ubi_dbg_dump_seb(seb, 0);
-			ubi_dbg_dump_vid_hdr(vid_hdr);
+			ubi_dump_vid_hdr(vid_hdr);
 			return -EINVAL;
 		}
 
@@ -519,7 +519,7 @@ int ubi_scan_add_used(struct ubi_device *ubi, struct ubi_scan_info *si,
 		 * Now we have to drop the older one and preserve the newer
 		 * one.
 		 */
-		cmp_res = compare_lebs(ubi, seb, pnum, vid_hdr);
+		cmp_res = ubi_compare_lebs(ubi, seb, pnum, vid_hdr);
 		if (cmp_res < 0)
 			return cmp_res;
 
@@ -814,7 +814,7 @@ static int check_corruption(struct ubi_device *ubi, struct ubi_vid_hdr *vid_hdr,
 	ubi_err("PEB %d contains corrupted VID header, and the data does not "
 		"contain all 0xFF, this may be a non-UBI PEB or a severe VID "
 		"header corruption which requires manual inspection", pnum);
-	ubi_dbg_dump_vid_hdr(vid_hdr);
+	ubi_dump_vid_hdr(vid_hdr);
 	dbg_msg("hexdump of PEB %d offset %d, length %d",
 		pnum, ubi->leb_start, ubi->leb_size);
 	ubi_dbg_print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 32, 1,
@@ -911,7 +911,7 @@ static int process_eb(struct ubi_device *ubi, struct ubi_scan_info *si,
 			 */
 			ubi_err("erase counter overflow, max is %d",
 				UBI_MAX_ERASECOUNTER);
-			ubi_dbg_dump_ec_hdr(ech);
+			ubi_dump_ec_hdr(ech);
 			return -EINVAL;
 		}
 
@@ -933,7 +933,7 @@ static int process_eb(struct ubi_device *ubi, struct ubi_scan_info *si,
 		    ubi->image_seq != image_seq) {
 			ubi_err("bad image sequence number %d in PEB %d, "
 				"expected %d", image_seq, pnum, ubi->image_seq);
-			ubi_dbg_dump_ec_hdr(ech);
+			ubi_dump_ec_hdr(ech);
 			return -EINVAL;
 		}
 	}
@@ -1011,7 +1011,12 @@ static int process_eb(struct ubi_device *ubi, struct ubi_scan_info *si,
 	}
 
 	vol_id = be32_to_cpu(vidh->vol_id);
-	if (vol_id > UBI_MAX_VOLUMES && vol_id != UBI_LAYOUT_VOLUME_ID) {
+
+	if (vol_id > UBI_MAX_VOLUMES &&
+		vol_id != UBI_LAYOUT_VOLUME_ID &&
+		((vol_id != UBI_FM_SB_VOLUME_ID &&
+		vol_id != UBI_FM_DATA_VOLUME_ID) ||
+		ubi->attached_by_scanning == true)) {
 		int lnum = be32_to_cpu(vidh->lnum);
 
 		/* Unsupported internal volume */
@@ -1595,10 +1600,10 @@ bad_sv:
 bad_vid_hdr:
 	ubi_err("bad scanning information about volume %d", sv->vol_id);
 	ubi_dbg_dump_sv(sv);
-	ubi_dbg_dump_vid_hdr(vidh);
+	ubi_dump_vid_hdr(vidh);
 
 out:
-	ubi_dbg_dump_stack();
+	dump_stack();
 	return -EINVAL;
 }
 
