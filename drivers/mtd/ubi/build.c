@@ -148,6 +148,16 @@ int ubi_volume_notify(struct ubi_device *ubi, struct ubi_volume *vol, int ntype)
 
 	ubi_do_get_device_info(ubi, &nt.di);
 	ubi_do_get_volume_info(ubi, vol, &nt.vi);
+
+	switch (ntype) {
+	case UBI_VOLUME_ADDED:
+	case UBI_VOLUME_REMOVED:
+	case UBI_VOLUME_RESIZED:
+	case UBI_VOLUME_RENAMED:
+		if (ubi_update_fastmap(ubi))
+			ubi_err("Unable to update fastmap!");
+	}
+
 	return blocking_notifier_call_chain(&ubi_notifiers, ntype, &nt);
 }
 
@@ -852,6 +862,59 @@ static int autoresize(struct ubi_device *ubi, int vol_id)
 	return 0;
 }
 
+static int attach_by_fastmap(struct ubi_device *ubi)
+{
+	int fm_start, err;
+	struct ubi_scan_info *si;
+
+	fm_start = ubi_find_fastmap(ubi);
+	if (fm_start < 0)
+		return -ENOENT;
+
+	si = ubi_read_fastmap(ubi, fm_start);
+	if (IS_ERR(si))
+		return PTR_ERR(si);
+
+	ubi->bad_peb_count = 0;
+	ubi->good_peb_count = ubi->peb_count;
+	ubi->corr_peb_count = 0;
+	ubi->max_ec = si->max_ec;
+	ubi->mean_ec = si->mean_ec;
+	ubi_msg("max. sequence number:       %llu", si->max_sqnum);
+
+	err = ubi_read_volume_table(ubi, si);
+	if (err) {
+		ubi_err("ubi_read_volume_table failed");
+		goto out_si;
+	}
+
+	err = ubi_wl_init_scan(ubi, si);
+	if (err) {
+		ubi_err("ubi_wl_init_scan failed!");
+		goto out_vtbl;
+	}
+
+	err = ubi_eba_init_scan(ubi, si);
+	if (err) {
+		ubi_err("ubi_eba_init_scan failed!");
+		goto out_wl;
+	}
+
+	ubi_msg("successfully attached via fastmapping!");
+	ubi_scan_destroy_si(si);
+	return 0;
+
+out_wl:
+	ubi_wl_close(ubi);
+out_vtbl:
+	free_internal_volumes(ubi);
+	vfree(ubi->vtbl);
+out_si:
+	ubi_scan_destroy_si(si);
+
+	return err;
+}
+
 /**
  * ubi_attach_mtd_dev - attach an MTD device.
  * @mtd: MTD device description object
@@ -931,6 +994,9 @@ int ubi_attach_mtd_dev(struct mtd_info *mtd, int ubi_num, int vid_hdr_offset)
 	ubi->vid_hdr_offset = vid_hdr_offset;
 	ubi->autoresize_vol_id = -1;
 
+	ubi->fm_pool.used = ubi->fm_pool.size = 0;
+	ubi->fm_pool.max_size = ARRAY_SIZE(ubi->fm_pool.pebs);
+
 	mutex_init(&ubi->buf_mutex);
 	mutex_init(&ubi->ckvol_mutex);
 	mutex_init(&ubi->device_mutex);
@@ -953,7 +1019,15 @@ int ubi_attach_mtd_dev(struct mtd_info *mtd, int ubi_num, int vid_hdr_offset)
 	if (err)
 		goto out_free;
 
-	err = attach_by_scanning(ubi);
+	err = attach_by_fastmap(ubi);
+	if (err) {
+		if (err != -ENOENT)
+			ubi_msg("falling back to attach by scanning mode!");
+
+		ubi->attached_by_scanning = true;
+		err = attach_by_scanning(ubi);
+	}
+
 	if (err) {
 		dbg_err("failed to attach by scanning, error %d", err);
 		goto out_debugging;

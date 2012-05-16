@@ -197,6 +197,39 @@ struct ubi_rename_entry {
 struct ubi_volume_desc;
 
 /**
+ * struct ubi_fastmap - in-memory fastmap data structure.
+ * @peb: PEBs used by the current fastamp
+ * @ec: the erase counter of each used PEB
+ * @size: size of the fastmap in bytes
+ * @used_blocks: number of used PEBs
+ */
+struct ubi_fastmap {
+	int peb[UBI_FM_MAX_BLOCKS];
+	unsigned int ec[UBI_FM_MAX_BLOCKS];
+	size_t size;
+	int used_blocks;
+};
+
+/**
+ * struct ubi_fm_pool - in-memory fastmap pool
+ * @pebs: PEBs in this pool
+ * @used: number of used PEBs
+ * @size: total number of PEBs in this pool
+ * @max_size: maximal size of the pool
+ *
+ * A pool gets filled with up to max_size.
+ * If all PEBs within the pool are used a new fastmap will be written
+ * to the flash and the pool gets refilled with empty PEBs.
+ *
+ */
+struct ubi_fm_pool {
+	int pebs[UBI_FM_MAX_POOL_SIZE];
+	int used;
+	int size;
+	int max_size;
+};
+
+/**
  * struct ubi_volume - UBI volume description data structure.
  * @dev: device object to make use of the the Linux device model
  * @cdev: character device object to create character device
@@ -331,6 +364,13 @@ struct ubi_wl_entry;
  * @ltree: the lock tree
  * @alc_mutex: serializes "atomic LEB change" operations
  *
+ * @fm: in-memory data structure of the currently used fastmap
+ * @old_fm: in-memory data structure old fastmap.
+ * 	    (only valid while writing a new one)
+ * @fm_pool: in-memory data structure of the fastmap pool
+ * @attached_by_scanning: this UBI device was attached by the old scanning
+ * 			  methold. All fastmap volumes have to be deleted.
+ *
  * @used: RB-tree of used physical eraseblocks
  * @erroneous: RB-tree of erroneous used physical eraseblocks
  * @free: RB-tree of free physical eraseblocks
@@ -421,6 +461,12 @@ struct ubi_device {
 	spinlock_t ltree_lock;
 	struct rb_root ltree;
 	struct mutex alc_mutex;
+
+	/* Fastmap stuff */
+	struct ubi_fastmap *fm;
+	struct ubi_fastmap *old_fm;
+	struct ubi_fm_pool fm_pool;
+	bool attached_by_scanning;
 
 	/* Wear-leveling sub-system's stuff */
 	struct rb_root used;
@@ -530,6 +576,7 @@ int ubi_eba_atomic_leb_change(struct ubi_device *ubi, struct ubi_volume *vol,
 int ubi_eba_copy_leb(struct ubi_device *ubi, int from, int to,
 		     struct ubi_vid_hdr *vid_hdr);
 int ubi_eba_init_scan(struct ubi_device *ubi, struct ubi_scan_info *si);
+unsigned long long ubi_next_sqnum(struct ubi_device *ubi);
 
 /* wl.c */
 int ubi_wl_get_peb(struct ubi_device *ubi);
@@ -539,6 +586,9 @@ int ubi_wl_scrub_peb(struct ubi_device *ubi, int pnum);
 int ubi_wl_init_scan(struct ubi_device *ubi, struct ubi_scan_info *si);
 void ubi_wl_close(struct ubi_device *ubi);
 int ubi_thread(void *u);
+int ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum);
+int ubi_wl_put_fm_peb(struct ubi_device *ubi, int pnum, int torture);
+int ubi_is_fm_block(struct ubi_device *ubi, int pnum);
 
 /* io.c */
 int ubi_io_read(const struct ubi_device *ubi, void *buf, int pnum, int offset,
@@ -574,6 +624,14 @@ int ubi_enumerate_volumes(struct notifier_block *nb);
 void ubi_do_get_device_info(struct ubi_device *ubi, struct ubi_device_info *di);
 void ubi_do_get_volume_info(struct ubi_device *ubi, struct ubi_volume *vol,
 			    struct ubi_volume_info *vi);
+/* scan.c */
+int ubi_compare_lebs(struct ubi_device *ubi, const struct ubi_scan_leb *seb,
+		      int pnum, const struct ubi_vid_hdr *vid_hdr);
+
+/* fastmap.c */
+int ubi_update_fastmap(struct ubi_device *ubi);
+struct ubi_scan_info *ubi_read_fastmap(struct ubi_device *ubi, int fm_sb_pnum);
+int ubi_find_fastmap(struct ubi_device *ubi);
 
 /*
  * ubi_rb_for_each_entry - walk an RB-tree.
