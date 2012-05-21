@@ -294,7 +294,7 @@ static struct ubi_ainf_volume *add_volume(struct ubi_attach_info *ai,
 }
 
 /**
- * compare_lebs - find out which logical eraseblock is newer.
+ * ubi_compare_lebs - find out which logical eraseblock is newer.
  * @ubi: UBI device description object
  * @aeb: first logical eraseblock to compare
  * @pnum: physical eraseblock number of the second logical eraseblock to
@@ -313,7 +313,7 @@ static struct ubi_ainf_volume *add_volume(struct ubi_attach_info *ai,
  *     o bit 2 is cleared: the older LEB is not corrupted;
  *     o bit 2 is set: the older LEB is corrupted.
  */
-static int compare_lebs(struct ubi_device *ubi, const struct ubi_ainf_peb *aeb,
+int ubi_compare_lebs(struct ubi_device *ubi, const struct ubi_ainf_peb *aeb,
 			int pnum, const struct ubi_vid_hdr *vid_hdr)
 {
 	void *buf;
@@ -501,7 +501,7 @@ int ubi_add_to_av(struct ubi_device *ubi, struct ubi_attach_info *ai, int pnum,
 		 * sequence numbers. We still can attach these images, unless
 		 * there is a need to distinguish between old and new
 		 * eraseblocks, in which case we'll refuse the image in
-		 * 'compare_lebs()'. In other words, we attach old clean
+		 * 'ubi_compare_lebs()'. In other words, we attach old clean
 		 * images, but refuse attaching old images with duplicated
 		 * logical eraseblocks because there was an unclean reboot.
 		 */
@@ -517,7 +517,7 @@ int ubi_add_to_av(struct ubi_device *ubi, struct ubi_attach_info *ai, int pnum,
 		 * Now we have to drop the older one and preserve the newer
 		 * one.
 		 */
-		cmp_res = compare_lebs(ubi, aeb, pnum, vid_hdr);
+		cmp_res = ubi_compare_lebs(ubi, aeb, pnum, vid_hdr);
 		if (cmp_res < 0)
 			return cmp_res;
 
@@ -977,7 +977,12 @@ static int scan_peb(struct ubi_device *ubi, struct ubi_attach_info *ai,
 	}
 
 	vol_id = be32_to_cpu(vidh->vol_id);
-	if (vol_id > UBI_MAX_VOLUMES && vol_id != UBI_LAYOUT_VOLUME_ID) {
+
+	if (vol_id > UBI_MAX_VOLUMES &&
+		vol_id != UBI_LAYOUT_VOLUME_ID &&
+		((vol_id != UBI_FM_SB_VOLUME_ID &&
+		vol_id != UBI_FM_DATA_VOLUME_ID) ||
+		ubi->attached_by_scanning == true)) {
 		int lnum = be32_to_cpu(vidh->lnum);
 
 		/* Unsupported internal volume */
@@ -1208,18 +1213,34 @@ out_ai:
 }
 
 /**
- * ubi_attach - attach an MTD device.
- * @ubi: UBI device descriptor
+ * scan_fastmap - attach MTD device using fastmap.
+ * @ubi: UBI device description object
  *
- * This function returns zero in case of success and a negative error code in
- * case of failure.
+ * This function attaches a MTD device using a fastmap and returns complete
+ * information about it in form of a "struct ubi_attach_info" object. In case
+ * of failure, an error code is returned.
  */
-int ubi_attach(struct ubi_device *ubi)
+static struct ubi_attach_info *scan_fastmap(struct ubi_device *ubi)
+{
+	int fm_start;
+
+	fm_start = ubi_find_fastmap(ubi);
+	if (fm_start < 0)
+		return ERR_PTR(-ENOENT);
+
+	return ubi_read_fastmap(ubi, fm_start);
+}
+
+static int do_attach(struct ubi_device *ubi, bool fullscan)
 {
 	int err;
 	struct ubi_attach_info *ai;
 
-	ai = scan_all(ubi);
+	if (fullscan)
+		ai = scan_all(ubi);
+	else
+		ai = scan_fastmap(ubi);
+
 	if (IS_ERR(ai))
 		return PTR_ERR(ai);
 
@@ -1252,6 +1273,31 @@ out_vtbl:
 	vfree(ubi->vtbl);
 out_ai:
 	ubi_destroy_ai(ai);
+	return err;
+}
+
+/**
+ * ubi_attach - attach an MTD device.
+ * @ubi: UBI device descriptor
+ *
+ * This function returns zero in case of success and a negative error code in
+ * case of failure.
+ */
+int ubi_attach(struct ubi_device *ubi)
+{
+	int err;
+
+	err = do_attach(ubi, false);
+	if (err) {
+		if (err != -ENOENT)
+			ubi_err("Attach by fastmap failed! " \
+				"Falling back to attach by scanning. " \
+				"error = %i\n", err);
+
+		ubi->attached_by_scanning = true;
+		err = do_attach(ubi, true);
+	}
+
 	return err;
 }
 
