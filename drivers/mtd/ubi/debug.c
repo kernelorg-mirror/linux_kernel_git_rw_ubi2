@@ -106,13 +106,11 @@ void ubi_dump_vid_hdr(const struct ubi_vid_hdr *vid_hdr)
 		       vid_hdr, UBI_VID_HDR_SIZE, 1);
 }
 
-#ifdef CONFIG_MTD_UBI_DEBUG
-
 /**
- * ubi_dbg_dump_vol_info- dump volume information.
+ * ubi_dump_vol_info - dump volume information.
  * @vol: UBI volume description object
  */
-void ubi_dbg_dump_vol_info(const struct ubi_volume *vol)
+void ubi_dump_vol_info(const struct ubi_volume *vol)
 {
 	printk(KERN_DEBUG "Volume information dump:\n");
 	printk(KERN_DEBUG "\tvol_id          %d\n", vol->vol_id);
@@ -139,11 +137,11 @@ void ubi_dbg_dump_vol_info(const struct ubi_volume *vol)
 }
 
 /**
- * ubi_dbg_dump_vtbl_record - dump a &struct ubi_vtbl_record object.
+ * ubi_dump_vtbl_record - dump a &struct ubi_vtbl_record object.
  * @r: the object to dump
  * @idx: volume table index
  */
-void ubi_dbg_dump_vtbl_record(const struct ubi_vtbl_record *r, int idx)
+void ubi_dump_vtbl_record(const struct ubi_vtbl_record *r, int idx)
 {
 	int name_len = be16_to_cpu(r->name_len);
 
@@ -173,44 +171,44 @@ void ubi_dbg_dump_vtbl_record(const struct ubi_vtbl_record *r, int idx)
 }
 
 /**
- * ubi_dbg_dump_sv - dump a &struct ubi_scan_volume object.
- * @sv: the object to dump
+ * ubi_dump_av - dump a &struct ubi_ainf_volume object.
+ * @av: the object to dump
  */
-void ubi_dbg_dump_sv(const struct ubi_scan_volume *sv)
+void ubi_dump_av(const struct ubi_ainf_volume *av)
 {
-	printk(KERN_DEBUG "Volume scanning information dump:\n");
-	printk(KERN_DEBUG "\tvol_id         %d\n", sv->vol_id);
-	printk(KERN_DEBUG "\thighest_lnum   %d\n", sv->highest_lnum);
-	printk(KERN_DEBUG "\tleb_count      %d\n", sv->leb_count);
-	printk(KERN_DEBUG "\tcompat         %d\n", sv->compat);
-	printk(KERN_DEBUG "\tvol_type       %d\n", sv->vol_type);
-	printk(KERN_DEBUG "\tused_ebs       %d\n", sv->used_ebs);
-	printk(KERN_DEBUG "\tlast_data_size %d\n", sv->last_data_size);
-	printk(KERN_DEBUG "\tdata_pad       %d\n", sv->data_pad);
+	printk(KERN_DEBUG "Volume attaching information dump:\n");
+	printk(KERN_DEBUG "\tvol_id         %d\n", av->vol_id);
+	printk(KERN_DEBUG "\thighest_lnum   %d\n", av->highest_lnum);
+	printk(KERN_DEBUG "\tleb_count      %d\n", av->leb_count);
+	printk(KERN_DEBUG "\tcompat         %d\n", av->compat);
+	printk(KERN_DEBUG "\tvol_type       %d\n", av->vol_type);
+	printk(KERN_DEBUG "\tused_ebs       %d\n", av->used_ebs);
+	printk(KERN_DEBUG "\tlast_data_size %d\n", av->last_data_size);
+	printk(KERN_DEBUG "\tdata_pad       %d\n", av->data_pad);
 }
 
 /**
- * ubi_dbg_dump_seb - dump a &struct ubi_scan_leb object.
- * @seb: the object to dump
+ * ubi_dump_aeb - dump a &struct ubi_ainf_peb object.
+ * @aeb: the object to dump
  * @type: object type: 0 - not corrupted, 1 - corrupted
  */
-void ubi_dbg_dump_seb(const struct ubi_scan_leb *seb, int type)
+void ubi_dump_aeb(const struct ubi_ainf_peb *aeb, int type)
 {
-	printk(KERN_DEBUG "eraseblock scanning information dump:\n");
-	printk(KERN_DEBUG "\tec       %d\n", seb->ec);
-	printk(KERN_DEBUG "\tpnum     %d\n", seb->pnum);
+	printk(KERN_DEBUG "eraseblock attaching information dump:\n");
+	printk(KERN_DEBUG "\tec       %d\n", aeb->ec);
+	printk(KERN_DEBUG "\tpnum     %d\n", aeb->pnum);
 	if (type == 0) {
-		printk(KERN_DEBUG "\tlnum     %d\n", seb->lnum);
-		printk(KERN_DEBUG "\tscrub    %d\n", seb->scrub);
-		printk(KERN_DEBUG "\tsqnum    %llu\n", seb->sqnum);
+		printk(KERN_DEBUG "\tlnum     %d\n", aeb->lnum);
+		printk(KERN_DEBUG "\tscrub    %d\n", aeb->scrub);
+		printk(KERN_DEBUG "\tsqnum    %llu\n", aeb->sqnum);
 	}
 }
 
 /**
- * ubi_dbg_dump_mkvol_req - dump a &struct ubi_mkvol_req object.
+ * ubi_dump_mkvol_req - dump a &struct ubi_mkvol_req object.
  * @req: the object to dump
  */
-void ubi_dbg_dump_mkvol_req(const struct ubi_mkvol_req *req)
+void ubi_dump_mkvol_req(const struct ubi_mkvol_req *req)
 {
 	char nm[17];
 
@@ -474,5 +472,3 @@ void ubi_debugfs_exit_dev(struct ubi_device *ubi)
 {
 	debugfs_remove_recursive(ubi->dbg->dfs_dir);
 }
-
-#endif /* CONFIG_MTD_UBI_DEBUG */
