@@ -1167,7 +1167,7 @@ out_unlock_leb:
  * print_rsvd_warning - warn about not having enough reserved PEBs.
  * @ubi: UBI device description object
  *
- * This is a helper function for 'ubi_eba_init_scan()' which is called when UBI
+ * This is a helper function for 'ubi_eba_init()' which is called when UBI
  * cannot reserve enough PEBs for bad block handling. This function makes a
  * decision whether we have to print a warning or not. The algorithm is as
  * follows:
@@ -1182,13 +1182,13 @@ out_unlock_leb:
  * reported by real users.
  */
 static void print_rsvd_warning(struct ubi_device *ubi,
-			       struct ubi_scan_info *si)
+			       struct ubi_attach_info *ai)
 {
 	/*
 	 * The 1 << 18 (256KiB) number is picked randomly, just a reasonably
 	 * large number to distinguish between newly flashed and used images.
 	 */
-	if (si->max_sqnum > (1 << 18)) {
+	if (ai->max_sqnum > (1 << 18)) {
 		int min = ubi->beb_rsvd_level / 10;
 
 		if (!min)
@@ -1205,19 +1205,19 @@ static void print_rsvd_warning(struct ubi_device *ubi,
 }
 
 /**
- * ubi_eba_init_scan - initialize the EBA sub-system using scanning information.
+ * ubi_eba_init - initialize the EBA sub-system using attaching information.
  * @ubi: UBI device description object
- * @si: scanning information
+ * @ai: attaching information
  *
  * This function returns zero in case of success and a negative error code in
  * case of failure.
  */
-int ubi_eba_init_scan(struct ubi_device *ubi, struct ubi_scan_info *si)
+int ubi_eba_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 {
 	int i, j, err, num_volumes;
-	struct ubi_scan_volume *sv;
+	struct ubi_ainf_volume *av;
 	struct ubi_volume *vol;
-	struct ubi_scan_leb *seb;
+	struct ubi_ainf_peb *aeb;
 	struct rb_node *rb;
 
 	dbg_eba("initialize EBA sub-system");
@@ -1226,7 +1226,7 @@ int ubi_eba_init_scan(struct ubi_device *ubi, struct ubi_scan_info *si)
 	mutex_init(&ubi->alc_mutex);
 	ubi->ltree = RB_ROOT;
 
-	ubi->global_sqnum = si->max_sqnum + 1;
+	ubi->global_sqnum = ai->max_sqnum + 1;
 	num_volumes = ubi->vtbl_slots + UBI_INT_VOL_COUNT;
 
 	for (i = 0; i < num_volumes; i++) {
@@ -1246,18 +1246,18 @@ int ubi_eba_init_scan(struct ubi_device *ubi, struct ubi_scan_info *si)
 		for (j = 0; j < vol->reserved_pebs; j++)
 			vol->eba_tbl[j] = UBI_LEB_UNMAPPED;
 
-		sv = ubi_scan_find_sv(si, idx2vol_id(ubi, i));
-		if (!sv)
+		av = ubi_find_av(ai, idx2vol_id(ubi, i));
+		if (!av)
 			continue;
 
-		ubi_rb_for_each_entry(rb, seb, &sv->root, u.rb) {
-			if (seb->lnum >= vol->reserved_pebs)
+		ubi_rb_for_each_entry(rb, aeb, &av->root, u.rb) {
+			if (aeb->lnum >= vol->reserved_pebs)
 				/*
 				 * This may happen in case of an unclean reboot
 				 * during re-size.
 				 */
-				ubi_scan_move_to_list(sv, seb, &si->erase);
-			vol->eba_tbl[seb->lnum] = seb->pnum;
+				ubi_move_aeb_to_list(av, aeb, &ai->erase);
+			vol->eba_tbl[aeb->lnum] = aeb->pnum;
 		}
 	}
 
@@ -1279,7 +1279,7 @@ int ubi_eba_init_scan(struct ubi_device *ubi, struct ubi_scan_info *si)
 		if (ubi->avail_pebs < ubi->beb_rsvd_level) {
 			/* No enough free physical eraseblocks */
 			ubi->beb_rsvd_pebs = ubi->avail_pebs;
-			print_rsvd_warning(ubi, si);
+			print_rsvd_warning(ubi, ai);
 		} else
 			ubi->beb_rsvd_pebs = ubi->beb_rsvd_level;
 
