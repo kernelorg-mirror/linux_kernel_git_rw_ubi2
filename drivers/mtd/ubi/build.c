@@ -144,6 +144,18 @@ int ubi_volume_notify(struct ubi_device *ubi, struct ubi_volume *vol, int ntype)
 
 	ubi_do_get_device_info(ubi, &nt.di);
 	ubi_do_get_volume_info(ubi, vol, &nt.vi);
+
+	switch (ntype) {
+	case UBI_VOLUME_ADDED:
+	case UBI_VOLUME_REMOVED:
+	case UBI_VOLUME_RESIZED:
+	case UBI_VOLUME_RENAMED:
+		if (ubi_update_fastmap(ubi)) {
+			ubi_err("Unable to update fastmap!");
+			ubi_ro_mode(ubi);
+		}
+	}
+
 	return blocking_notifier_call_chain(&ubi_notifiers, ntype, &nt);
 }
 
@@ -873,6 +885,19 @@ int ubi_attach_mtd_dev(struct mtd_info *mtd, int ubi_num, int vid_hdr_offset)
 	ubi->ubi_num = ubi_num;
 	ubi->vid_hdr_offset = vid_hdr_offset;
 	ubi->autoresize_vol_id = -1;
+
+	ubi->fm_pool.used = ubi->fm_pool.size = 0;
+
+	/*
+	 * fm_pool.max_size is 5% of the total number of PEBs but it's also
+	 * between UBI_FM_MAX_POOL_SIZE and UBI_FM_MIN_POOL_SIZE.
+	 */
+	ubi->fm_pool.max_size = min(((int)mtd_div_by_eb(ubi->mtd->size,
+		ubi->mtd) / 100) * 5, UBI_FM_MAX_POOL_SIZE);
+	if (ubi->fm_pool.max_size < UBI_FM_MIN_POOL_SIZE)
+		ubi->fm_pool.max_size = UBI_FM_MIN_POOL_SIZE;
+
+	ubi_msg("fastmap pool size: %d", ubi->fm_pool.max_size);
 
 	mutex_init(&ubi->buf_mutex);
 	mutex_init(&ubi->ckvol_mutex);

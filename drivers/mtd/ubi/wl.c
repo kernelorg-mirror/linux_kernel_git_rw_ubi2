@@ -166,6 +166,25 @@ static int self_check_in_pq(const struct ubi_device *ubi,
 			    struct ubi_wl_entry *e);
 
 /**
+ *  ubi_ubi_is_fm_block - returns 1 if a PEB is currently used in a fastmap.
+ *  @ubi: UBI device description object
+ *  @pnum: the to be checked PEB
+ */
+int ubi_is_fm_block(struct ubi_device *ubi, int pnum)
+{
+	int i;
+
+	if (!ubi->fm)
+		return 0;
+
+	for (i = 0; i < ubi->fm->used_blocks; i++)
+		if (ubi->fm->e[i]->pnum == pnum)
+			return 1;
+
+	return 0;
+}
+
+/**
  * wl_tree_add - add a wear-leveling entry to a WL RB-tree.
  * @e: the wear-leveling entry to add
  * @root: the root of the tree
@@ -371,13 +390,82 @@ static struct ubi_wl_entry *find_wl_entry(struct rb_root *root, int diff)
 }
 
 /**
- * ubi_wl_get_peb - get a physical eraseblock.
+ * find_early_wl_entry - find wear-leveling entry with the lowest pnum.
+ * @root: the RB-tree where to look for
+ * @max_pnum: highest possible pnum
+ */
+static struct ubi_wl_entry *find_early_wl_entry(struct rb_root *root,
+						int max_pnum)
+{
+	struct rb_node *p;
+	struct ubi_wl_entry *e, *victim = NULL;
+
+	ubi_rb_for_each_entry(p, e, root, u.rb) {
+		if (e->pnum < max_pnum) {
+			victim = e;
+			max_pnum = e->pnum;
+		}
+	}
+
+	return victim;
+}
+
+/**
+ * ubi_wl_get_fm_peb - find a physical erase block with a given maximal number.
+ * @ubi: UBI device description object
+ * @max_pnum: the highest acceptable erase block number
+ *
+ * The function returns a physical erase block with a given maximal number
+ * and removes it from the wl subsystem.
+ * If max_pnum is negative a PEB with a mean EC will be selected.
+ * Must be called with wl_lock held!
+ */
+int ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum)
+{
+	int ret = -ENOSPC;
+	struct ubi_wl_entry *e, *first, *last;
+
+	if (!ubi->free.rb_node) {
+		ubi_err("no free eraseblocks");
+
+		goto out;
+	}
+
+	if (max_pnum < 0) {
+		first = rb_entry(rb_first(&ubi->free),
+			struct ubi_wl_entry, u.rb);
+		last = rb_entry(rb_last(&ubi->free),
+			struct ubi_wl_entry, u.rb);
+
+		if (last->ec - first->ec < WL_FREE_MAX_DIFF)
+			e = rb_entry(ubi->free.rb_node,
+				struct ubi_wl_entry, u.rb);
+		else
+			e = find_wl_entry(&ubi->free, WL_FREE_MAX_DIFF/2);
+	} else
+		e = find_early_wl_entry(&ubi->free, max_pnum);
+
+	if (!e)
+		goto out;
+
+	self_check_in_wl_tree(ubi, e, &ubi->free);
+	ret = e->pnum;
+
+	/* remove it from the free list,
+	 * the wl subsystem does no longer know this erase block */
+	rb_erase(&e->u.rb, &ubi->free);
+out:
+	return ret;
+}
+
+/**
+ * __ubi_wl_get_peb - get a physical eraseblock.
  * @ubi: UBI device description object
  *
  * This function returns a physical eraseblock in case of success and a
  * negative error code in case of failure. Might sleep.
  */
-int ubi_wl_get_peb(struct ubi_device *ubi)
+static int __ubi_wl_get_peb(struct ubi_device *ubi)
 {
 	int err;
 	struct ubi_wl_entry *e, *first, *last;
@@ -426,6 +514,40 @@ retry:
 	}
 
 	return e->pnum;
+}
+
+/* ubi_wl_get_peb - works exaclty like __ubi_wl_get_peb but keeps track of
+ * the fastmap pool.
+ */
+int ubi_wl_get_peb(struct ubi_device *ubi)
+{
+	struct ubi_fm_pool *pool = &ubi->fm_pool;
+	int ret;
+
+	/* pool contains no free blocks, create a new one
+	 * and write a fastmap */
+	if (pool->used == pool->size || !pool->size) {
+		for (pool->size = 0; pool->size < pool->max_size;
+				pool->size++) {
+			pool->pebs[pool->size] = __ubi_wl_get_peb(ubi);
+			if (pool->pebs[pool->size] < 0)
+				break;
+		}
+
+		pool->used = 0;
+		ret = ubi_update_fastmap(ubi);
+		if (ret) {
+			ubi_ro_mode(ubi);
+
+			return ret > 0 ? -EINVAL : ret;
+		}
+	}
+
+	/* we got not a single free PEB */
+	if (!pool->size)
+		return -ENOSPC;
+
+	return pool->pebs[pool->used++];
 }
 
 /**
@@ -595,6 +717,9 @@ static int schedule_erase(struct ubi_device *ubi, struct ubi_wl_entry *e,
 {
 	struct ubi_work *wl_wrk;
 
+	ubi_assert(e);
+	ubi_assert(!ubi_is_fm_block(ubi, e->pnum));
+
 	dbg_wl("schedule erasure of PEB %d, EC %d, torture %d",
 	       e->pnum, e->ec, torture);
 
@@ -610,6 +735,52 @@ static int schedule_erase(struct ubi_device *ubi, struct ubi_wl_entry *e,
 
 	schedule_ubi_work(ubi, wl_wrk);
 	return 0;
+}
+
+/**
+ * ubi_wl_put_fm_peb - returns a PEB used in a fastmap to the wear-leveling
+ * sub-system.
+ *
+ * see: ubi_wl_put_peb()
+ */
+int ubi_wl_put_fm_peb(struct ubi_device *ubi, int pnum, int torture)
+{
+	int i, err = 0;
+	struct ubi_wl_entry *e;
+
+	dbg_wl("PEB %d", pnum);
+	ubi_assert(pnum >= 0);
+	ubi_assert(pnum < ubi->peb_count);
+
+	spin_lock(&ubi->wl_lock);
+	e = ubi->lookuptbl[pnum];
+
+	/* This can happen if we recovered from a fastmap the very
+	 * first time and writing now a new one. In this case the wl system
+	 * has never seen any PEB used by the original fastmap.
+	 */
+	if (!e) {
+		ubi_assert(ubi->old_fm);
+
+		/* use the ec value from the fastmap */
+		for (i = 0; i < ubi->old_fm->used_blocks; i++) {
+			if (ubi->old_fm->e[i] &&
+				pnum == ubi->old_fm->e[i]->pnum) {
+				e = ubi->old_fm->e[i];
+				ubi->old_fm->e[i] = NULL;
+				break;
+			}
+		}
+		ubi_assert(e);
+		ubi_assert(e->ec);
+		ubi->lookuptbl[pnum] = e;
+	}
+
+	spin_unlock(&ubi->wl_lock);
+
+	err = schedule_erase(ubi, e, torture);
+
+	return err;
 }
 
 /**
@@ -991,6 +1162,8 @@ static int erase_worker(struct ubi_device *ubi, struct ubi_work *wl_wrk,
 
 	dbg_wl("erase PEB %d EC %d LEB %d:%d",
 	       pnum, e->ec, wl_wrk->vol_id, wl_wrk->lnum);
+
+	ubi_assert(!ubi_is_fm_block(ubi, e->pnum));
 
 	err = sync_erase(ubi, e, wl_wrk->torture);
 	if (!err) {
@@ -1449,6 +1622,7 @@ int ubi_wl_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 
 		e->pnum = aeb->pnum;
 		e->ec = aeb->ec;
+		ubi_assert(!ubi_is_fm_block(ubi, e->pnum));
 		ubi->lookuptbl[e->pnum] = e;
 		if (schedule_erase(ubi, e, aeb->vol_id, aeb->lnum, 0)) {
 			kmem_cache_free(ubi_wl_entry_slab, e);
@@ -1466,7 +1640,10 @@ int ubi_wl_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		e->pnum = aeb->pnum;
 		e->ec = aeb->ec;
 		ubi_assert(e->ec >= 0);
+		ubi_assert(!ubi_is_fm_block(ubi, e->pnum));
+
 		wl_tree_add(e, &ubi->free);
+
 		ubi->lookuptbl[e->pnum] = e;
 	}
 
@@ -1481,6 +1658,9 @@ int ubi_wl_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 			e->pnum = aeb->pnum;
 			e->ec = aeb->ec;
 			ubi->lookuptbl[e->pnum] = e;
+			if (ubi_is_fm_block(ubi, aeb->pnum))
+				continue;
+
 			if (!aeb->scrub) {
 				dbg_wl("add PEB %d EC %d to the used tree",
 				       e->pnum, e->ec);
