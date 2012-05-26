@@ -389,6 +389,7 @@ struct ubi_vtbl_record {
 #define UBI_FM_POOL_MAGIC	0x67AF4D08
 #define UBI_FM_EBA_MAGIC	0xf0c040a8
 
+/* TODO: would be great to have short coments for the constants */
 #define UBI_FM_MAX_START	64
 #define UBI_FM_MAX_BLOCKS	32
 #define UBI_FM_MIN_POOL_SIZE	8
@@ -426,6 +427,9 @@ struct ubi_fm_sb {
  */
 struct ubi_fm_hdr {
 	__be32 magic;
+	/* TODO: would you please name these fields using the same names UBI
+	 * uses in the in-RAM data structures (bad_peb_count, good_peb_count,
+	 * etc.) See struct ubi_device. */
 	__be32 nfree;
 	__be32 nused;
 	__be32 nvol;

@@ -595,6 +595,8 @@ fail:
  * ubi_find_fastmap - searches the first UBI_FM_MAX_START PEBs for the
  * fastmap super block.
  * @ubi: UBI device object
+ *
+ * TODO: clearly document return codes
  */
 static int ubi_find_fastmap(struct ubi_device *ubi, int *fm_start)
 {
@@ -614,6 +616,11 @@ static int ubi_find_fastmap(struct ubi_device *ubi, int *fm_start)
 
 		if (be32_to_cpu(vhdr->vol_id) == UBI_FM_SB_VOLUME_ID) {
 			*fm_start = i;
+			/* TODO: fix globally: all UBI prints:
+			 *  a) do not need the '\n' at the end
+			 *  b) start with a small letter, because the macros
+			 *     add several prefixes.
+			 */
 			dbg_bld("Found fastmap super block at PEB %i\n", i);
 			ret = 0;
 
@@ -623,6 +630,23 @@ static int ubi_find_fastmap(struct ubi_device *ubi, int *fm_start)
 
 	ubi_free_vid_hdr(ubi, vhdr);
 
+	/* TODO: we can return:
+	 * < 0 - error
+	 * 0 - fastmap found
+	 * 0 - also if we did not find fastmap and the last
+	 *     'ubi_io_read_vid_hdr()' call returned 0. This was not
+	 *     tested with volumes which do not contain fastmap? We need to
+	 *     test this - we need to have a testcase for this in mtd-utils. I
+	 *     can create a branch there and we should agree on which tests are
+	 *     run before anything goes into the git repo.
+	 * > 0 - ignore?
+	 *
+	 * Please, make it instead:
+	 * return 0 - no errors
+	 * return < 0 - error
+	 * If FM not found, fm_start = -1
+	 * If FM found, fm_start is set properly
+	 */
 	return ret;
 }
 
@@ -650,6 +674,13 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info **ai)
 
 		goto out;
 	}
+	/* TODO: then this will be:
+	 * if (ret)
+	 *         return ret;
+	 * if (sb_pnum == -1)
+	 *         return UBI_NO_FASTMAP;
+	 *
+	 * Much better, I think */
 
 	fmsb = kmalloc(sizeof(*fmsb), GFP_KERNEL);
 	if (!fmsb) {
@@ -661,6 +692,11 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info **ai)
 	ret = ubi_io_read(ubi, fmsb, sb_pnum, ubi->leb_start, sizeof(*fmsb));
 	if (ret) {
 		ubi_err("Unable to read fastmap super block");
+		/* TODO: please, read what 'ubi_io_read()' returns.
+		 * This code is incorrect. All return codes are carefully
+		 * documented there. And do it globally, I see you ignore the
+		 * bitflips error code and treat it as error everywhere.
+		 * Please, start testing with UBI bit-flips emulation enabled */
 		if (ret > 0)
 			ret = UBI_BAD_FASTMAP;
 
