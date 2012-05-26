@@ -1240,12 +1240,26 @@ int ubi_attach(struct ubi_device *ubi)
 	int err;
 	struct ubi_attach_info *ai = NULL;
 
+	/* TODO: Allocate ai in this fuction. And destroy it here as well */
+
 	err = ubi_scan_fastmap(ubi, &ai);
 	if (err > 0) {
+		/* TODO: in UBIFS we have a convention: every function prints
+		 * its own error messages. This makes things cleaner and easier
+		 * - the caller should not care about printing anything.
+		 * Please, move this error message to 'ubi_scan_fastmap()'. And
+		 * keep this in mind, and do similar thing globally for entire
+		 * fastmap code. */
 		if (err == UBI_BAD_FASTMAP)
-			ubi_err("Attach by fastmap failed! " \
+			ubi_err("Attach by fastmap failed! "
 				"Falling back to attach by scanning.");
 
+		/* TODO: please, remove this variable altogether, it is not
+		 * needed and it is a hack which you use to tell 'scan_peb()'
+		 * to handle fastmap volumes specially. Make this is a clean
+		 * way instead: after the scanning, go through the fastmap
+		 * volumes (if any was found) and delete them or do whatever
+		 * you need. Do not inject hacks to the scanning code. */
 		ubi->attached_by_scanning = 1;
 		ai = scan_all(ubi);
 		if (IS_ERR(ai))
@@ -1253,6 +1267,12 @@ int ubi_attach(struct ubi_device *ubi)
 	} else if (err < 0)
 		return err;
 
+	/* TODO: When you create an image with ubinize - you do not know the
+	 * amount of PEBs. So you need to initialize this field with '-1' at
+	 * ubinize time. And here you need to check for -1 and initialize it if
+	 * needed. Then store it at fastmap. This special value has to be also
+	 * documented at ubi-media.h. You also have to amend 'nused' etc.
+	 * Probably this can be done later. */
 	ubi->bad_peb_count = ai->bad_peb_count;
 	ubi->good_peb_count = ubi->peb_count - ubi->bad_peb_count;
 	ubi->corr_peb_count = ai->corr_peb_count;
@@ -1260,6 +1280,10 @@ int ubi_attach(struct ubi_device *ubi)
 	ubi->mean_ec = ai->mean_ec;
 	ubi_msg("max. sequence number:       %llu", ai->max_sqnum);
 
+	/* TODO: If you support fastmap but it was not found, you need to check
+	 * here that ai does not contain fastmap volumes. If it was corrupted,
+	 * you need to delete fastmap volumes or possible leftovers of them.
+	 * And then you have to create _new_ fastmap */
 	err = ubi_read_volume_table(ubi, ai);
 	if (err)
 		goto out_ai;
@@ -1273,6 +1297,14 @@ int ubi_attach(struct ubi_device *ubi)
 		goto out_wl;
 
 	ubi_destroy_ai(ai);
+
+	/* TODO: UBI auto formats the flash if it is empty (see ubi->is_empty).
+	 * It is currently done so that every sub-system writes initializes its
+	 * own stuff. Well, now it is only the vtbl sub-system - it creates
+	 * empty volume table. And this is why we have "early" function for
+	 * getting free PEBs. Fastmap should do the same - so I guess it is
+	 * good to do it somewhere here. Also, we need to re-create the fastmap
+	 * on-flash data-structures if they were corrupted. */
 	return 0;
 
 out_wl:
