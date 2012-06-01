@@ -195,6 +195,7 @@ static int update_vol(struct ubi_device *ubi, struct ubi_attach_info *ai,
 		 * Then a PEB can be within the persistent EBA and the pool.
 		 */
 		if (aeb->pnum == new_aeb->pnum) {
+			ubi_assert(aeb->lnum == new_aeb->lnum);
 			kmem_cache_free(ai->aeb_slab_cache, new_aeb);
 
 			return 0;
