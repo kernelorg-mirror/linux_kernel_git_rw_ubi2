@@ -1045,7 +1045,6 @@ int ubi_detach_mtd_dev(int ubi_num, int anyway)
 	ubi_assert(ubi_num == ubi->ubi_num);
 	ubi_notify_all(ubi, UBI_VOLUME_REMOVED, NULL);
 	dbg_msg("detaching mtd%d from ubi%d", ubi->mtd->index, ubi_num);
-	ubi_update_fastmap(ubi);
 
 	/*
 	 * Before freeing anything, we have to stop the background thread to
@@ -1053,6 +1052,10 @@ int ubi_detach_mtd_dev(int ubi_num, int anyway)
 	 */
 	if (ubi->bgt_thread)
 		kthread_stop(ubi->bgt_thread);
+
+	/* If no fastmap is present on the FLASH write one. */
+	if (!ubi->fm)
+		ubi_update_fastmap(ubi);
 
 	/*
 	 * Get a reference to the device in order to prevent 'dev_release()'
