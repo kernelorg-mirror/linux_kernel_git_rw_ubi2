@@ -383,6 +383,7 @@ struct ubi_wl_entry;
  * @old_fm: in-memory data structure old fastmap.
  *	    (only valid while writing a new one)
  * @fm_pool: in-memory data structure of the fastmap pool
+ * @fm_mutex: serializes ubi_update_fastmap()
  * @attached_by_scanning: this UBI device was attached by the old scanning
  *			  methold. All fastmap volumes have to be deleted.
  *
@@ -481,6 +482,7 @@ struct ubi_device {
 	struct ubi_fastmap_layout *fm;
 	struct ubi_fastmap_layout *old_fm;
 	struct ubi_fm_pool fm_pool;
+	struct mutex fm_mutex;
 	int attached_by_scanning;
 
 	/* Wear-leveling sub-system's stuff */

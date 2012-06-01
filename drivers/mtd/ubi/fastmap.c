@@ -1152,6 +1152,8 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 		}
 	}
 
+	mutex_lock(&ubi->fm_mutex);
+
 	ubi->old_fm = ubi->fm;
 	ubi->fm = NULL;
 
@@ -1167,9 +1169,9 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 
 			ec_hdr = kzalloc(ubi->ec_hdr_alsize, GFP_KERNEL);
 			if (!ec_hdr) {
-				kfree(new_fm);
+				ret = -ENOMEM;
 
-				return -ENOMEM;
+				goto err;
 			}
 
 			/* we have to erase the block by hand */
@@ -1178,40 +1180,38 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				ec_hdr, 0);
 			if (ret) {
 				ubi_err("Unable to read EC header");
-				kfree(new_fm);
 				kfree(ec_hdr);
 
-				return ret;
+				goto err;;
 			}
 
 			ret = ubi_io_sync_erase(ubi, ubi->old_fm->e[0]->pnum,
 				0);
 			if (ret < 0) {
 				ubi_err("Unable to erase old SB");
-				kfree(new_fm);
 				kfree(ec_hdr);
 
-				return ret;
+				goto err;
 			}
 
 			ec = be64_to_cpu(ec_hdr->ec);
 			ec += ret;
 			if (ec > UBI_MAX_ERASECOUNTER) {
 				ubi_err("Erase counter overflow!");
-				kfree(new_fm);
 				kfree(ec_hdr);
+				ret = -EINVAL;
 
-				return -EINVAL;
+				goto err;
 			}
 
+			ec_hdr->ec = cpu_to_be64(ec);
 			ret = ubi_io_write_ec_hdr(ubi, ubi->old_fm->e[0]->pnum,
 				ec_hdr);
 			kfree(ec_hdr);
 			if (ret) {
 				ubi_err("Unable to write new EC header");
-				kfree(new_fm);
 
-				return ret;
+				goto err;
 			}
 
 			new_fm->e[0]->pnum = ubi->old_fm->e[0]->pnum;
@@ -1228,18 +1228,18 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 	} else {
 		if (new_fm->e[0]->pnum < 0) {
 			ubi_err("Could not find an early PEB");
-			kfree(new_fm);
+			ret = -ENOSPC;
 
-			return -ENOSPC;
+			goto err;
 		}
 		new_fm->e[0]->ec = get_ec(ubi, new_fm->e[0]->pnum);
 	}
 
 	if (new_fm->used_blocks > UBI_FM_MAX_BLOCKS) {
 		ubi_err("Fastmap too large");
-		kfree(new_fm);
+		ret = -ENOSPC;
 
-		return -ENOSPC;
+		goto err;
 	}
 
 	/* give the wl subsystem a chance to produce some free blocks */
@@ -1257,10 +1257,9 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				ubi_wl_put_fm_peb(ubi, new_fm->e[i]->pnum, 0);
 				kfree(new_fm->e[i]);
 			}
+			ret = -ENOSPC;
 
-			kfree(new_fm);
-
-			return -ENOSPC;
+			goto err;
 		}
 
 		new_fm->e[i]->ec = get_ec(ubi, new_fm->e[i]->pnum);
@@ -1274,5 +1273,13 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 		ubi->old_fm = NULL;
 	}
 
-	return ubi_write_fastmap(ubi, new_fm);
+	ret = ubi_write_fastmap(ubi, new_fm);
+out_unlock:
+	mutex_unlock(&ubi->fm_mutex);
+
+	return ret;
+
+err:
+	kfree(new_fm);
+	goto out_unlock;
 }
