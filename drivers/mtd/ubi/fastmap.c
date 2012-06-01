@@ -417,13 +417,12 @@ out:
  * @fm_size: size of the fastmap in bytes
  */
 static int ubi_attach_fastmap(struct ubi_device *ubi,
-			      struct ubi_attach_info **aip,
+			      struct ubi_attach_info *ai,
 			      char *fm_raw, size_t fm_size)
 {
 	struct list_head used;
 	struct ubi_ainf_volume *av;
 	struct ubi_ainf_peb *aeb, *tmp_aeb, *_tmp_aeb;
-	struct ubi_attach_info *ai;
 
 	struct ubi_fm_sb *fmsb;
 	struct ubi_fm_hdr *fmhdr;
@@ -435,12 +434,6 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 	int ret, i, j;
 	size_t fm_pos = 0;
 	unsigned long long max_sqnum = 0;
-
-	*aip = kzalloc(sizeof(struct ubi_attach_info), GFP_KERNEL);
-	if (!*aip)
-		return -ENOMEM;
-
-	ai = *aip;
 
 	INIT_LIST_HEAD(&used);
 	INIT_LIST_HEAD(&ai->corr);
@@ -587,7 +580,6 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 fail_bad:
 	ret = UBI_BAD_FASTMAP;
 fail:
-	ubi_destroy_ai(ubi, ai);
 	return ret;
 }
 
@@ -642,7 +634,7 @@ out:
  * @ubi: UBI device object
  * @ai: UBI attach info to be filled
  */
-int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info **ai)
+int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 {
 	struct ubi_fm_sb *fmsb;
 	struct ubi_vid_hdr *vh;
@@ -830,20 +822,19 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info **ai)
 	if (ret) {
 		if (ret > 0)
 			ret = UBI_BAD_FASTMAP;
-		ubi_destroy_ai(ubi, *ai);
 
 		goto free_hdr;
 	}
 
-	(*ai)->fm = kzalloc(sizeof(*(*ai)->fm), GFP_KERNEL);
-	if (!(*ai)->fm) {
+	ai->fm = kzalloc(sizeof(*ai->fm), GFP_KERNEL);
+	if (!ai->fm) {
 		ret = -ENOMEM;
 
 		goto free_hdr;
 	}
 
-	(*ai)->fm->size = fm_size;
-	(*ai)->fm->used_blocks = nblocks;
+	ai->fm->size = fm_size;
+	ai->fm->used_blocks = nblocks;
 
 	for (i = 0; i < nblocks; i++) {
 		struct ubi_wl_entry *e;
@@ -851,10 +842,10 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info **ai)
 		e = kmem_cache_alloc(ubi_wl_entry_slab, GFP_KERNEL);
 		if (!e) {
 			while (i--)
-				kfree((*ai)->fm->e[i]);
+				kfree(ai->fm->e[i]);
 
-			kfree((*ai)->fm);
-			(*ai)->fm = NULL;
+			kfree(ai->fm);
+			ai->fm = NULL;
 			ret = -ENOMEM;
 
 			goto free_hdr;
@@ -862,7 +853,7 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info **ai)
 		e->pnum = be32_to_cpu(fmsb->block_loc[i]);
 		e->ec = be32_to_cpu(fmsb->block_ec[i]);
 
-		(*ai)->fm->e[i] = e;
+		ai->fm->e[i] = e;
 	}
 
 free_hdr:

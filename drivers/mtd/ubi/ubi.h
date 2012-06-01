@@ -778,7 +778,7 @@ int ubi_compare_lebs(struct ubi_device *ubi, const struct ubi_ainf_peb *aeb,
 
 /* fastmap.c */
 int ubi_update_fastmap(struct ubi_device *ubi);
-int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info **ai);
+int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai);
 
 /*
  * ubi_rb_for_each_entry - walk an RB-tree.
