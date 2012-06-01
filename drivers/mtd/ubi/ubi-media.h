@@ -408,7 +408,7 @@ struct ubi_vtbl_record {
  * @magic: fastmap super block magic number (%UBI_FM_SB_MAGIC)
  * @version: format version of this fastmap
  * @data_crc: CRC over the fastmap data
- * @nblocks: number of PEBs used by this fastmap
+ * @used_blocks: number of PEBs used by this fastmap
  * @block_loc: an array containing the location of all PEBs of the fastmap
  * @block_ec: the erase counter of each used PEB
  * @sqnum: highest sequence number value at the time while taking the fastmap
@@ -419,7 +419,7 @@ struct ubi_fm_sb {
 	__u8 version;
 	__u8 padding1[3];
 	__be32 data_crc;
-	__be32 nblocks;
+	__be32 used_blocks;
 	__be32 block_loc[UBI_FM_MAX_BLOCKS];
 	__be32 block_ec[UBI_FM_MAX_BLOCKS];
 	__be64 sqnum;
@@ -429,19 +429,17 @@ struct ubi_fm_sb {
 /**
  * struct ubi_fm_hdr - header of the fastmap data set
  * @magic: fastmap header magic number (%UBI_FM_HDR_MAGIC)
- * @nfree: number of free PEBs known by this fastmap
- * @nused: number of used PEBs known by this fastmap
- * @nvol: number of UBI volumes known by this fastmap
+ * @free_peb_count: number of free PEBs known by this fastmap
+ * @free_peb_count: number of used PEBs known by this fastmap
+ * @vol_count: number of UBI volumes known by this fastmap
+ * @bad_peb_count: number of bad PEBs known by this fastmap
  */
 struct ubi_fm_hdr {
 	__be32 magic;
-	/* TODO: would you please name these fields using the same names UBI
-	 * uses in the in-RAM data structures (bad_peb_count, good_peb_count,
-	 * etc.) See struct ubi_device. */
-	__be32 nfree;
-	__be32 nused;
-	__be32 nvol;
-	__be32 nbad;
+	__be32 free_peb_count;
+	__be32 used_peb_count;
+	__be32 vol_count;
+	__be32 bad_peb_count;
 	__u8 padding[12];
 } __packed;
 
@@ -498,12 +496,12 @@ struct ubi_fm_volhdr {
 /**
  * struct ubi_fm_eba - denotes an association beween a PEB and LEB
  * @magic EBA table magic number
- * @nused: number of table entries
+ * @reserved_pebs: number of table entries
  * @pnum: PEB number of LEB (LEB is the index)
  */
 struct ubi_fm_eba {
 	__be32 magic;
-	__be32 nused;
+	__be32 reserved_pebs;
 	__be32 pnum[0];
 } __packed;
 #endif /* !__UBI_MEDIA_H__ */
