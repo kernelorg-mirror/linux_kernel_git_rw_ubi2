@@ -226,6 +226,7 @@ static int update_vol(struct ubi_device *ubi, struct ubi_attach_info *ai,
 			aeb->ec = new_aeb->ec;
 			aeb->pnum = new_aeb->pnum;
 			aeb->copy_flag = new_vh->copy_flag;
+			aeb->scrub = new_aeb->scrub;
 			kmem_cache_free(ai->aeb_slab_cache, new_aeb);
 
 		/* new_aeb is older */
@@ -352,16 +353,24 @@ static int scan_pool(struct ubi_device *ubi, struct ubi_attach_info *ai,
 
 		err = ubi_io_read_vid_hdr(ubi, pnum, vh, 0);
 
-		if (err == UBI_IO_FF)
+		if (err == UBI_IO_FF || err == UBI_IO_FF_BITFLIPS)
 			continue;
-		else if (err == 0) {
+		else if (err == 0 || err == UBI_IO_BITFLIPS) {
+			int scrub = 0;
+
+			ubi_msg("Found non empty PEB:%i in pool", pnum);
+
+			if (err == UBI_IO_BITFLIPS)
+				scrub = 1;
+
 			err = ubi_io_read_ec_hdr(ubi, pnum, ech, 0);
-			if (err) {
+			if (err && err != UBI_IO_BITFLIPS) {
 				dbg_bld("unable to read EC header!");
 				ret = err > 0 ? UBI_BAD_FASTMAP : err;
 
 				goto out;
-			}
+			} else if (ret == UBI_IO_BITFLIPS)
+				scrub = 1;
 
 			if (be32_to_cpu(ech->image_seq) != ubi->image_seq) {
 				dbg_bld("image seq mismatch!");
@@ -383,7 +392,10 @@ static int scan_pool(struct ubi_device *ubi, struct ubi_attach_info *ai,
 			new_aeb->lnum = be32_to_cpu(vh->lnum);
 			new_aeb->sqnum = be64_to_cpu(vh->sqnum);
 			new_aeb->copy_flag = vh->copy_flag;
-			new_aeb->scrub = 0;
+			new_aeb->scrub = scrub;
+
+			if (*max_sqnum < new_aeb->sqnum)
+				*max_sqnum = new_aeb->sqnum;
 
 			err = process_pool_aeb(ubi, ai, vh, new_aeb);
 			if (err) {
@@ -391,9 +403,6 @@ static int scan_pool(struct ubi_device *ubi, struct ubi_attach_info *ai,
 
 				goto out;
 			}
-
-			if (*max_sqnum < new_aeb->sqnum)
-				*max_sqnum = new_aeb->sqnum;
 		} else {
 			/* We are paranoid and fall back to scanning mode */
 			ubi_err("fastmap pool PEBs contains damaged PEBs!");
@@ -661,13 +670,7 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	}
 
 	ret = ubi_io_read(ubi, fmsb, sb_pnum, ubi->leb_start, sizeof(*fmsb));
-	if (ret) {
-		ubi_err("unable to read fastmap super block");
-		/* TODO: please, read what 'ubi_io_read()' returns.
-		 * This code is incorrect. All return codes are carefully
-		 * documented there. And do it globally, I see you ignore the
-		 * bitflips error code and treat it as error everywhere.
-		 * Please, start testing with UBI bit-flips emulation enabled */
+	if (ret && ret != UBI_IO_BITFLIPS) {
 		if (ret > 0)
 			ret = UBI_BAD_FASTMAP;
 
@@ -740,7 +743,7 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		}
 
 		ret = ubi_io_read_ec_hdr(ubi, pnum, ech, 0);
-		if (ret) {
+		if (ret && ret != UBI_IO_BITFLIPS) {
 			ubi_err("unable to read fastmap block# %i EC (PEB: %i)",
 				i, pnum);
 			if (ret > 0)
@@ -1149,7 +1152,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 
 			ret = ubi_io_read_ec_hdr(ubi, old_fm->e[0]->pnum,
 				ec_hdr, 0);
-			if (ret) {
+			if (ret && ret != UBI_IO_BITFLIPS) {
 				ubi_err("unable to read EC header");
 				kfree(ec_hdr);
 
