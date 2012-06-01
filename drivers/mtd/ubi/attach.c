@@ -1110,22 +1110,18 @@ static int late_analysis(struct ubi_device *ubi, struct ubi_attach_info *ai)
 /**
  * scan_all - scan entire MTD device.
  * @ubi: UBI device description object
+ * @ai: attach info object
  *
  * This function does full scanning of an MTD device and returns complete
  * information about it in form of a "struct ubi_attach_info" object. In case
  * of failure, an error code is returned.
  */
-static struct ubi_attach_info *scan_all(struct ubi_device *ubi)
+static int scan_all(struct ubi_device *ubi, struct ubi_attach_info *ai)
 {
 	int err, pnum;
 	struct rb_node *rb1, *rb2;
 	struct ubi_ainf_volume *av;
 	struct ubi_ainf_peb *aeb;
-	struct ubi_attach_info *ai;
-
-	ai = kzalloc(sizeof(struct ubi_attach_info), GFP_KERNEL);
-	if (!ai)
-		return ERR_PTR(-ENOMEM);
 
 	INIT_LIST_HEAD(&ai->corr);
 	INIT_LIST_HEAD(&ai->free);
@@ -1197,7 +1193,7 @@ static struct ubi_attach_info *scan_all(struct ubi_device *ubi)
 	ubi_free_vid_hdr(ubi, vidh);
 	kfree(ech);
 
-	return ai;
+	return 0;
 
 out_vidh:
 	ubi_free_vid_hdr(ubi, vidh);
@@ -1205,7 +1201,7 @@ out_ech:
 	kfree(ech);
 out_ai:
 	ubi_destroy_ai(ubi, ai);
-	return ERR_PTR(err);
+	return err;
 }
 
 /**
@@ -1218,11 +1214,13 @@ out_ai:
 int ubi_attach(struct ubi_device *ubi)
 {
 	int err;
-	struct ubi_attach_info *ai = NULL;
+	struct ubi_attach_info *ai;
 
-	/* TODO: Allocate ai in this fuction. And destroy it here as well */
+	ai = kzalloc(sizeof(struct ubi_attach_info), GFP_KERNEL);
+	if (!ai)
+		return -ENOMEM;
 
-	err = ubi_scan_fastmap(ubi, &ai);
+	err = ubi_scan_fastmap(ubi, ai);
 	if (err > 0) {
 		/* TODO: in UBIFS we have a convention: every function prints
 		 * its own error messages. This makes things cleaner and easier
@@ -1234,11 +1232,9 @@ int ubi_attach(struct ubi_device *ubi)
 			ubi_err("Attach by fastmap failed! "
 				"Falling back to attach by scanning.");
 
-		ai = scan_all(ubi);
-		if (IS_ERR(ai))
-			return PTR_ERR(ai);
-		else
-			printk(KERN_ERR "attached by scanning!\n");
+		err = scan_all(ubi, ai);
+		if (err)
+			return err;
 	} else if (err < 0)
 		return err;
 
