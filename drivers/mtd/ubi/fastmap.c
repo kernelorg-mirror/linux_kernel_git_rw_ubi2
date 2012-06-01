@@ -1067,7 +1067,8 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 	dbg_bld("Fastmap written!");
 
 out_kfree:
-	kfree(avhdr);
+	ubi_free_vid_hdr(ubi, avhdr);
+	ubi_free_vid_hdr(ubi, dvhdr);
 out_vfree:
 	vfree(fm_raw);
 out:
