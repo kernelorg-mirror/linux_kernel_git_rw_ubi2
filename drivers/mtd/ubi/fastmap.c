@@ -570,12 +570,15 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 			}
 
 			/* This can happen if a PEB is already in an EBA known
-			 * by this fastmap but the PEB itself is not in the used list.
-			 * In this case the PEB can be within the fastmap pool or
-			 * while writing the fastmap it was in the protected queue.
+			 * by this fastmap but the PEB itself is not in the used
+			 * list.
+			 * In this case the PEB can be within the fastmap pool
+			 * or while writing the fastmap it was in the protection
+			 * queue.
 			 */
 			if (!aeb) {
-				aeb = kmem_cache_alloc(ai->aeb_slab_cache, GFP_KERNEL);
+				aeb = kmem_cache_alloc(ai->aeb_slab_cache,
+					GFP_KERNEL);
 				if (!aeb) {
 					ret = -ENOMEM;
 
@@ -610,7 +613,8 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 			goto fail;
 		}
 
-		list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &eba_orphans, u.list) {
+		list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &eba_orphans,
+			u.list) {
 			int err;
 
 			if (ubi_io_is_bad(ubi, tmp_aeb->pnum)) {
@@ -693,7 +697,8 @@ static int ubi_find_fastmap(struct ubi_device *ubi, int *fm_start)
 
 		if (be32_to_cpu(vhdr->vol_id) == UBI_FM_SB_VOLUME_ID) {
 			sqnum = be64_to_cpu(vhdr->sqnum);
-			dbg_bld("found a fastmap super block at PEB %i sqnum: %llu", i, sqnum);
+			dbg_bld("found a fastmap super block at PEB %i " \
+				"sqnum: %llu", i, sqnum);
 
 			if (sqnum > max_sqnum) {
 				max_sqnum = sqnum;
@@ -1229,7 +1234,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				ubi_err("unable to read EC header");
 				kfree(ec_hdr);
 
-				goto err;;
+				goto err;
 			}
 
 			ret = ubi_io_sync_erase(ubi, old_fm->e[0]->pnum,
