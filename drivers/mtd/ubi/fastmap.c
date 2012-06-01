@@ -587,7 +587,7 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 fail_bad:
 	ret = UBI_BAD_FASTMAP;
 fail:
-	ubi_destroy_ai(ai);
+	ubi_destroy_ai(ubi, ai);
 	return ret;
 }
 
@@ -830,21 +830,20 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info **ai)
 	if (ret) {
 		if (ret > 0)
 			ret = UBI_BAD_FASTMAP;
-		ubi_destroy_ai(*ai);
+		ubi_destroy_ai(ubi, *ai);
 
 		goto free_hdr;
 	}
 
-	/* Store the fastmap position into the ubi_device struct */
-	ubi->old_fm = kzalloc(sizeof(*ubi->old_fm), GFP_KERNEL);
-	if (!ubi->old_fm) {
+	(*ai)->fm = kzalloc(sizeof(*(*ai)->fm), GFP_KERNEL);
+	if (!(*ai)->fm) {
 		ret = -ENOMEM;
 
 		goto free_hdr;
 	}
 
-	ubi->old_fm->size = fm_size;
-	ubi->old_fm->used_blocks = nblocks;
+	(*ai)->fm->size = fm_size;
+	(*ai)->fm->used_blocks = nblocks;
 
 	for (i = 0; i < nblocks; i++) {
 		struct ubi_wl_entry *e;
@@ -852,9 +851,10 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info **ai)
 		e = kmem_cache_alloc(ubi_wl_entry_slab, GFP_KERNEL);
 		if (!e) {
 			while (i--)
-				kfree(ubi->old_fm->e[i]);
+				kfree((*ai)->fm->e[i]);
 
-			kfree(ubi->old_fm);
+			kfree((*ai)->fm);
+			(*ai)->fm = NULL;
 			ret = -ENOMEM;
 
 			goto free_hdr;
@@ -862,7 +862,7 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info **ai)
 		e->pnum = be32_to_cpu(fmsb->block_loc[i]);
 		e->ec = be32_to_cpu(fmsb->block_ec[i]);
 
-		ubi->old_fm->e[i] = e;
+		(*ai)->fm->e[i] = e;
 	}
 
 free_hdr:
@@ -1100,9 +1100,7 @@ static int get_ec(struct ubi_device *ubi, int pnum)
 int ubi_update_fastmap(struct ubi_device *ubi)
 {
 	int ret, i;
-	struct ubi_fastmap_layout *new_fm;
-
-	ubi_msg("ubi_update_fastmap!!!!");
+	struct ubi_fastmap_layout *new_fm, *old_fm;
 
 	if (ubi->ro_mode)
 		return 0;
@@ -1134,14 +1132,14 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 
 	mutex_lock(&ubi->fm_mutex);
 
-	ubi->old_fm = ubi->fm;
+	old_fm = ubi->fm;
 	ubi->fm = NULL;
 
 	spin_lock(&ubi->wl_lock);
 	new_fm->e[0]->pnum = ubi_wl_get_fm_peb(ubi, UBI_FM_MAX_START);
 	spin_unlock(&ubi->wl_lock);
 
-	if (ubi->old_fm) {
+	if (old_fm) {
 		/* no fresh early PEB was found, reuse the old one */
 		if (new_fm->e[0]->pnum < 0) {
 			struct ubi_ec_hdr *ec_hdr;
@@ -1156,7 +1154,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 
 			/* we have to erase the block by hand */
 
-			ret = ubi_io_read_ec_hdr(ubi, ubi->old_fm->e[0]->pnum,
+			ret = ubi_io_read_ec_hdr(ubi, old_fm->e[0]->pnum,
 				ec_hdr, 0);
 			if (ret) {
 				ubi_err("Unable to read EC header");
@@ -1165,7 +1163,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				goto err;;
 			}
 
-			ret = ubi_io_sync_erase(ubi, ubi->old_fm->e[0]->pnum,
+			ret = ubi_io_sync_erase(ubi, old_fm->e[0]->pnum,
 				0);
 			if (ret < 0) {
 				ubi_err("Unable to erase old SB");
@@ -1185,7 +1183,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 			}
 
 			ec_hdr->ec = cpu_to_be64(ec);
-			ret = ubi_io_write_ec_hdr(ubi, ubi->old_fm->e[0]->pnum,
+			ret = ubi_io_write_ec_hdr(ubi, old_fm->e[0]->pnum,
 				ec_hdr);
 			kfree(ec_hdr);
 			if (ret) {
@@ -1194,16 +1192,16 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				goto err;
 			}
 
-			new_fm->e[0]->pnum = ubi->old_fm->e[0]->pnum;
-			new_fm->e[0]->ec = ubi->old_fm->e[0]->ec;
+			new_fm->e[0]->pnum = old_fm->e[0]->pnum;
+			new_fm->e[0]->ec = old_fm->e[0]->ec;
 		} else {
 			/* we've got a new early PEB, return the old one */
-			ubi_wl_put_fm_peb(ubi, ubi->old_fm->e[0], 0);
+			ubi_wl_put_fm_peb(ubi, old_fm->e[0], 0);
 		}
 
 		/* return all other fastmap block to the wl system */
-		for (i = 1; i < ubi->old_fm->used_blocks; i++)
-			ubi_wl_put_fm_peb(ubi, ubi->old_fm->e[i], 0);
+		for (i = 1; i < old_fm->used_blocks; i++)
+			ubi_wl_put_fm_peb(ubi, old_fm->e[i], 0);
 	} else {
 		if (new_fm->e[0]->pnum < 0) {
 			ubi_err("Could not find an early PEB");
@@ -1244,12 +1242,11 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 		new_fm->e[i]->ec = get_ec(ubi, new_fm->e[i]->pnum);
 	}
 
-	if (ubi->old_fm) {
-		for (i = 0; i < ubi->old_fm->used_blocks; i++)
-			kfree(ubi->old_fm->e[i]);
+	if (old_fm) {
+		for (i = 0; i < old_fm->used_blocks; i++)
+			kfree(old_fm->e[i]);
 
-		kfree(ubi->old_fm);
-		ubi->old_fm = NULL;
+		kfree(old_fm);
 	}
 
 	ret = ubi_write_fastmap(ubi, new_fm);

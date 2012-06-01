@@ -1204,7 +1204,7 @@ out_vidh:
 out_ech:
 	kfree(ech);
 out_ai:
-	ubi_destroy_ai(ai);
+	ubi_destroy_ai(ubi, ai);
 	return ERR_PTR(err);
 }
 
@@ -1217,7 +1217,7 @@ out_ai:
  */
 int ubi_attach(struct ubi_device *ubi)
 {
-	int err, i;
+	int err;
 	struct ubi_attach_info *ai = NULL;
 
 	/* TODO: Allocate ai in this fuction. And destroy it here as well */
@@ -1271,12 +1271,7 @@ int ubi_attach(struct ubi_device *ubi)
 	if (err)
 		goto out_wl;
 
-	ubi_destroy_ai(ai);
-
-	/* Return all PEBs used by the found fastmap to the WL sub-system. */
-	if (ubi->old_fm)
-		for (i = 0; i < ubi->old_fm->used_blocks; i++)
-			ubi_wl_put_fm_peb(ubi, ubi->old_fm->e[i], 0);
+	ubi_destroy_ai(ubi, ai);
 
 	/* TODO: UBI auto formats the flash if it is empty (see ubi->is_empty).
 	 * It is currently done so that every sub-system writes initializes its
@@ -1293,7 +1288,7 @@ out_vtbl:
 	ubi_free_internal_volumes(ubi);
 	vfree(ubi->vtbl);
 out_ai:
-	ubi_destroy_ai(ai);
+	ubi_destroy_ai(ubi, ai);
 	return err;
 }
 
@@ -1332,9 +1327,10 @@ static void destroy_av(struct ubi_attach_info *ai, struct ubi_ainf_volume *av)
 
 /**
  * ubi_destroy_ai - destroy attaching information.
+ * @ubi: UBI device object
  * @ai: attaching information
  */
-void ubi_destroy_ai(struct ubi_attach_info *ai)
+void ubi_destroy_ai(struct ubi_device *ubi, struct ubi_attach_info *ai)
 {
 	struct ubi_ainf_peb *aeb, *aeb_tmp;
 	struct ubi_ainf_volume *av;
@@ -1381,6 +1377,14 @@ void ubi_destroy_ai(struct ubi_attach_info *ai)
 
 	if (ai->aeb_slab_cache)
 		kmem_cache_destroy(ai->aeb_slab_cache);
+
+	/* Return all PEBs back to the WL sub-system */
+	if (ai->fm) {
+		while(ai->fm->used_blocks--)
+			ubi_wl_put_fm_peb(ubi, ai->fm->e[ai->fm->used_blocks], 0);
+
+		kfree(ai->fm);
+	}
 
 	kfree(ai);
 }
