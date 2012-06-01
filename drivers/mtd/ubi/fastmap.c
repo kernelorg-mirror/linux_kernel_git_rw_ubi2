@@ -1163,6 +1163,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 		/* no fresh early PEB was found, reuse the old one */
 		if (new_fm->e[0]->pnum < 0) {
 			struct ubi_ec_hdr *ec_hdr;
+			long long ec;
 
 			ec_hdr = kzalloc(ubi->ec_hdr_alsize, GFP_KERNEL);
 			if (!ec_hdr) {
@@ -1193,8 +1194,9 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				return ret;
 			}
 
-			ec_hdr->ec += ret;
-			if (ec_hdr->ec > UBI_MAX_ERASECOUNTER) {
+			ec = be64_to_cpu(ec_hdr->ec);
+			ec += ret;
+			if (ec > UBI_MAX_ERASECOUNTER) {
 				ubi_err("Erase counter overflow!");
 				kfree(new_fm);
 				kfree(ec_hdr);
