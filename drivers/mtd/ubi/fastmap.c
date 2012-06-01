@@ -1003,6 +1003,7 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 		feba->magic = UBI_FM_EBA_MAGIC;
 	}
 	fmh->vol_count = cpu_to_be32(vol_count);
+	fmh->bad_peb_count = cpu_to_be32(ubi->bad_peb_count);
 
 	avhdr->sqnum = cpu_to_be64(ubi_next_sqnum(ubi));
 	avhdr->lnum = 0;
