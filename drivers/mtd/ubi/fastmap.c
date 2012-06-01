@@ -936,6 +936,9 @@ free_hdr:
 free_raw:
 	vfree(fm_raw);
 out:
+	if (ret == UBI_BAD_FASTMAP)
+		ubi_err("Attach by fastmap failed, doing a full scan!");
+
 	return ret;
 }
 

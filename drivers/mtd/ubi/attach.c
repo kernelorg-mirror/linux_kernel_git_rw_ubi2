@@ -1222,16 +1222,6 @@ int ubi_attach(struct ubi_device *ubi)
 
 	err = ubi_scan_fastmap(ubi, ai);
 	if (err > 0) {
-		/* TODO: in UBIFS we have a convention: every function prints
-		 * its own error messages. This makes things cleaner and easier
-		 * - the caller should not care about printing anything.
-		 * Please, move this error message to 'ubi_scan_fastmap()'. And
-		 * keep this in mind, and do similar thing globally for entire
-		 * fastmap code. */
-		if (err == UBI_BAD_FASTMAP)
-			ubi_err("Attach by fastmap failed! "
-				"Falling back to attach by scanning.");
-
 		err = scan_all(ubi, ai);
 		if (err)
 			return err;
