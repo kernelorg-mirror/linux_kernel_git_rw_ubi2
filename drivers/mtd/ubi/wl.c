@@ -386,6 +386,29 @@ static struct ubi_wl_entry *find_wl_entry(struct rb_root *root, int diff)
 }
 
 /**
+ * find_mean_wl_entry - find wear-leveling entry with medium erase counter.
+ * @root: the RB-tree where to look for
+ *
+ * This function looks for a wear leveling entry with medium erase counter,
+ * but not greater or equivalent than the lowest erase counter plus
+ * %WL_FREE_MAX_DIFF/2.
+ */
+static struct ubi_wl_entry *find_mean_wl_entry(struct rb_root *root)
+{
+	struct ubi_wl_entry *e, *first, *last;
+
+	first = rb_entry(rb_first(root), struct ubi_wl_entry, u.rb);
+	last = rb_entry(rb_last(root), struct ubi_wl_entry, u.rb);
+
+	if (last->ec - first->ec < WL_FREE_MAX_DIFF)
+		e = rb_entry(root->rb_node, struct ubi_wl_entry, u.rb);
+	else
+		e = find_wl_entry(root, WL_FREE_MAX_DIFF/2);
+
+	return e;
+}
+
+/**
  * find_early_wl_entry - find wear-leveling entry with the lowest pnum.
  * @root: the RB-tree where to look for
  * @max_pnum: highest possible pnum
@@ -419,7 +442,7 @@ static struct ubi_wl_entry *find_early_wl_entry(struct rb_root *root,
 int ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum)
 {
 	int ret = -ENOSPC;
-	struct ubi_wl_entry *e, *first, *last;
+	struct ubi_wl_entry *e;
 
 	if (!ubi->free.rb_node) {
 		ubi_err("no free eraseblocks");
@@ -427,18 +450,9 @@ int ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum)
 		goto out;
 	}
 
-	if (max_pnum < 0) {
-		first = rb_entry(rb_first(&ubi->free),
-			struct ubi_wl_entry, u.rb);
-		last = rb_entry(rb_last(&ubi->free),
-			struct ubi_wl_entry, u.rb);
-
-		if (last->ec - first->ec < WL_FREE_MAX_DIFF)
-			e = rb_entry(ubi->free.rb_node,
-				struct ubi_wl_entry, u.rb);
-		else
-			e = find_wl_entry(&ubi->free, WL_FREE_MAX_DIFF/2);
-	} else
+	if (max_pnum < 0)
+		e = find_mean_wl_entry(&ubi->free);
+	else
 		e = find_early_wl_entry(&ubi->free, max_pnum);
 
 	if (!e)
@@ -464,7 +478,7 @@ out:
 static int __ubi_wl_get_peb(struct ubi_device *ubi)
 {
 	int err;
-	struct ubi_wl_entry *e, *first, *last;
+	struct ubi_wl_entry *e;
 
 retry:
 	spin_lock(&ubi->wl_lock);
@@ -483,13 +497,7 @@ retry:
 		goto retry;
 	}
 
-	first = rb_entry(rb_first(&ubi->free), struct ubi_wl_entry, u.rb);
-	last = rb_entry(rb_last(&ubi->free), struct ubi_wl_entry, u.rb);
-
-	if (last->ec - first->ec < WL_FREE_MAX_DIFF)
-		e = rb_entry(ubi->free.rb_node, struct ubi_wl_entry, u.rb);
-	else
-		e = find_wl_entry(&ubi->free, WL_FREE_MAX_DIFF/2);
+	e = find_mean_wl_entry(&ubi->free);
 
 	self_check_in_wl_tree(ubi, e, &ubi->free);
 
