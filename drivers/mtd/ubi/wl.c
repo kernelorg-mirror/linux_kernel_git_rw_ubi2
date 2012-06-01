@@ -166,7 +166,7 @@ static int self_check_in_pq(const struct ubi_device *ubi,
  *  @ubi: UBI device description object
  *  @pnum: the to be checked PEB
  */
-int ubi_is_fm_block(struct ubi_device *ubi, int pnum)
+static int ubi_is_fm_block(struct ubi_device *ubi, int pnum)
 {
 	int i;
 
