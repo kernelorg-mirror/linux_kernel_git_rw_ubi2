@@ -337,7 +337,7 @@ int ubi_compare_lebs(struct ubi_device *ubi, const struct ubi_ainf_peb *aeb,
 		 * support these images anymore. Well, those images still work,
 		 * but only if no unclean reboots happened.
 		 */
-		ubi_err("unsupported on-flash UBI format\n");
+		ubi_err("unsupported on-flash UBI format");
 		return -EINVAL;
 	}
 
