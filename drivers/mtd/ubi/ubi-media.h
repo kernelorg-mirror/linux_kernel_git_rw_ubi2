@@ -389,9 +389,17 @@ struct ubi_vtbl_record {
 #define UBI_FM_POOL_MAGIC	0x67AF4D08
 #define UBI_FM_EBA_MAGIC	0xf0c040a8
 
-/* TODO: would be great to have short coments for the constants */
+/* A fastmap supber block can be located between PEB 0 and
+ * UBI_FM_MAX_START */
 #define UBI_FM_MAX_START	64
+
+/* A fastmap can use up to UBI_FM_MAX_BLOCKS PEBs */
 #define UBI_FM_MAX_BLOCKS	32
+
+/* 5% of the total number of PEBs have to be scanned while attaching
+ * from a fastmap.
+ * But the size of this pool is limited to be between UBI_FM_MIN_POOL_SIZE and
+ * UBI_FM_MAX_POOL_SIZE */
 #define UBI_FM_MIN_POOL_SIZE	8
 #define UBI_FM_MAX_POOL_SIZE	256
 
