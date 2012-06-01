@@ -524,6 +524,8 @@ int ubi_wl_get_peb(struct ubi_device *ubi)
 	struct ubi_fm_pool *pool = &ubi->fm_pool;
 	int ret;
 
+	mutex_lock(&ubi->fm_pool_mutex);
+
 	/* pool contains no free blocks, create a new one
 	 * and write a fastmap */
 	if (pool->used == pool->size || !pool->size) {
@@ -538,10 +540,12 @@ int ubi_wl_get_peb(struct ubi_device *ubi)
 		ret = ubi_update_fastmap(ubi);
 		if (ret) {
 			ubi_ro_mode(ubi);
+			mutex_unlock(&ubi->fm_pool_mutex);
 
 			return ret > 0 ? -EINVAL : ret;
 		}
 	}
+	mutex_unlock(&ubi->fm_pool_mutex);
 
 	/* we got not a single free PEB */
 	if (!pool->size)
