@@ -1044,6 +1044,7 @@ int ubi_detach_mtd_dev(int ubi_num, int anyway)
 	ubi_assert(ubi_num == ubi->ubi_num);
 	ubi_notify_all(ubi, UBI_VOLUME_REMOVED, NULL);
 	dbg_msg("detaching mtd%d from ubi%d", ubi->mtd->index, ubi_num);
+	ubi_update_fastmap(ubi);
 
 	/*
 	 * Before freeing anything, we have to stop the background thread to
@@ -1060,6 +1061,7 @@ int ubi_detach_mtd_dev(int ubi_num, int anyway)
 
 	ubi_debugfs_exit_dev(ubi);
 	uif_close(ubi);
+
 	ubi_wl_close(ubi);
 	ubi_free_internal_volumes(ubi);
 	vfree(ubi->vtbl);
