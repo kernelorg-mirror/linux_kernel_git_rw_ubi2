@@ -1257,10 +1257,6 @@ int ubi_attach(struct ubi_device *ubi)
 	ubi->mean_ec = ai->mean_ec;
 	ubi_msg("max. sequence number:       %llu", ai->max_sqnum);
 
-	/* TODO: If you support fastmap but it was not found, you need to check
-	 * here that ai does not contain fastmap volumes. If it was corrupted,
-	 * you need to delete fastmap volumes or possible leftovers of them.
-	 * And then you have to create _new_ fastmap */
 	err = ubi_read_volume_table(ubi, ai);
 	if (err)
 		goto out_ai;
