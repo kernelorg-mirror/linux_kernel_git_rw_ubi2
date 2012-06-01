@@ -978,11 +978,7 @@ static int scan_peb(struct ubi_device *ubi, struct ubi_attach_info *ai,
 
 	vol_id = be32_to_cpu(vidh->vol_id);
 
-	if (vol_id > UBI_MAX_VOLUMES &&
-		vol_id != UBI_LAYOUT_VOLUME_ID &&
-		(ubi->attached_by_scanning ||
-		(vol_id != UBI_FM_SB_VOLUME_ID &&
-		vol_id != UBI_FM_DATA_VOLUME_ID))) {
+	if (vol_id > UBI_MAX_VOLUMES && vol_id != UBI_LAYOUT_VOLUME_ID) {
 		int lnum = be32_to_cpu(vidh->lnum);
 
 		/* Unsupported internal volume */
@@ -1221,7 +1217,7 @@ out_ai:
  */
 int ubi_attach(struct ubi_device *ubi)
 {
-	int err;
+	int err, i;
 	struct ubi_attach_info *ai = NULL;
 
 	/* TODO: Allocate ai in this fuction. And destroy it here as well */
@@ -1238,16 +1234,11 @@ int ubi_attach(struct ubi_device *ubi)
 			ubi_err("Attach by fastmap failed! "
 				"Falling back to attach by scanning.");
 
-		/* TODO: please, remove this variable altogether, it is not
-		 * needed and it is a hack which you use to tell 'scan_peb()'
-		 * to handle fastmap volumes specially. Make this is a clean
-		 * way instead: after the scanning, go through the fastmap
-		 * volumes (if any was found) and delete them or do whatever
-		 * you need. Do not inject hacks to the scanning code. */
-		ubi->attached_by_scanning = 1;
 		ai = scan_all(ubi);
 		if (IS_ERR(ai))
 			return PTR_ERR(ai);
+		else
+			printk(KERN_ERR "attached by scanning!\n");
 	} else if (err < 0)
 		return err;
 
@@ -1281,6 +1272,11 @@ int ubi_attach(struct ubi_device *ubi)
 		goto out_wl;
 
 	ubi_destroy_ai(ai);
+
+	/* Return all PEBs used by the found fastmap to the WL sub-system. */
+	if (ubi->old_fm)
+		for (i = 0; i < ubi->old_fm->used_blocks; i++)
+			ubi_wl_put_fm_peb(ubi, ubi->old_fm->e[i], 0);
 
 	/* TODO: UBI auto formats the flash if it is empty (see ubi->is_empty).
 	 * It is currently done so that every sub-system writes initializes its
