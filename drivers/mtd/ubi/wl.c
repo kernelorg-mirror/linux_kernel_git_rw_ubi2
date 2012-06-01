@@ -747,10 +747,10 @@ static int schedule_erase(struct ubi_device *ubi, struct ubi_wl_entry *e,
  *
  * see: ubi_wl_put_peb()
  */
-int ubi_wl_put_fm_peb(struct ubi_device *ubi, int pnum, int torture)
+int ubi_wl_put_fm_peb(struct ubi_device *ubi, struct ubi_wl_entry *used_e, int torture)
 {
-	int i, err = 0;
 	struct ubi_wl_entry *e;
+	int pnum = used_e->pnum;
 
 	dbg_wl("PEB %d", pnum);
 	ubi_assert(pnum >= 0);
@@ -764,27 +764,15 @@ int ubi_wl_put_fm_peb(struct ubi_device *ubi, int pnum, int torture)
 	 * has never seen any PEB used by the original fastmap.
 	 */
 	if (!e) {
-		ubi_assert(ubi->old_fm);
+		e = used_e;
 
-		/* use the ec value from the fastmap */
-		for (i = 0; i < ubi->old_fm->used_blocks; i++) {
-			if (ubi->old_fm->e[i] &&
-				pnum == ubi->old_fm->e[i]->pnum) {
-				e = ubi->old_fm->e[i];
-				ubi->old_fm->e[i] = NULL;
-				break;
-			}
-		}
-		ubi_assert(e);
 		ubi_assert(e->ec);
 		ubi->lookuptbl[pnum] = e;
 	}
 
 	spin_unlock(&ubi->wl_lock);
 
-	err = schedule_erase(ubi, e, torture);
-
-	return err;
+	return schedule_erase(ubi, e, torture);
 }
 
 /**
