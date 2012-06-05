@@ -751,7 +751,6 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	fmsb = kmalloc(sizeof(*fmsb), GFP_KERNEL);
 	if (!fmsb) {
 		ret = -ENOMEM;
-
 		goto out;
 	}
 
@@ -764,9 +763,7 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		/* TODO: what are the error codes > 0 ? Why is this check? */
 		if (ret > 0)
 			ret = UBI_BAD_FASTMAP;
-
 		kfree(fmsb);
-
 		goto out;
 	}
 
@@ -784,7 +781,6 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		ubi_err("super block magic does not match");
 		ret = UBI_BAD_FASTMAP;
 		kfree(fmsb);
-
 		goto out;
 	}
 
@@ -792,17 +788,14 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		ubi_err("unknown fastmap format version!");
 		ret = UBI_BAD_FASTMAP;
 		kfree(fmsb);
-
 		goto out;
 	}
 
 	used_blocks = be32_to_cpu(fmsb->used_blocks);
-
 	if (used_blocks > UBI_FM_MAX_BLOCKS || used_blocks < 1) {
 		ubi_err("number of fastmap blocks is invalid");
 		ret = UBI_BAD_FASTMAP;
 		kfree(fmsb);
-
 		goto out;
 	}
 
@@ -812,7 +805,6 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	if (!fm_raw) {
 		ret = -ENOMEM;
 		kfree(fmsb);
-
 		goto out;
 	}
 
@@ -820,7 +812,6 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	if (!ech) {
 		ret = -ENOMEM;
 		kfree(fmsb);
-
 		goto free_raw;
 	}
 
@@ -829,7 +820,6 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		ret = -ENOMEM;
 		kfree(fmsb);
 		kfree(ech);
-
 		goto free_raw;
 	}
 
@@ -839,7 +829,6 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		if (ubi_io_is_bad(ubi, pnum)) {
 			ret = UBI_BAD_FASTMAP;
 			kfree(fmsb);
-
 			goto free_hdr;
 		}
 
@@ -850,7 +839,6 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 			if (ret > 0)
 				ret = UBI_BAD_FASTMAP;
 			kfree(fmsb);
-
 			goto free_hdr;
 		}
 
@@ -860,7 +848,6 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		if (be32_to_cpu(ech->image_seq) != ubi->image_seq) {
 			ret = UBI_BAD_FASTMAP;
 			kfree(fmsb);
-
 			goto free_hdr;
 		}
 
@@ -871,7 +858,6 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 			if (ret > 0)
 				ret = UBI_BAD_FASTMAP;
 			kfree(fmsb);
-
 			goto free_hdr;
 		}
 
@@ -886,7 +872,6 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 			if (be32_to_cpu(vh->vol_id) != UBI_FM_DATA_VOLUME_ID) {
 				ret = UBI_BAD_FASTMAP;
 				kfree(fmsb);
-
 				goto free_hdr;
 			}
 		}
@@ -903,7 +888,6 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 			if (ret > 0)
 				ret = UBI_BAD_FASTMAP;
 			kfree(fmsb);
-
 			goto free_hdr;
 		}
 	}
@@ -927,14 +911,12 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	if (ret) {
 		if (ret > 0)
 			ret = UBI_BAD_FASTMAP;
-
 		goto free_hdr;
 	}
 
 	ai->fm = kzalloc(sizeof(*ai->fm), GFP_KERNEL);
 	if (!ai->fm) {
 		ret = -ENOMEM;
-
 		goto free_hdr;
 	}
 
@@ -952,12 +934,11 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 			kfree(ai->fm);
 			ai->fm = NULL;
 			ret = -ENOMEM;
-
 			goto free_hdr;
 		}
+
 		e->pnum = be32_to_cpu(fmsb->block_loc[i]);
 		e->ec = be32_to_cpu(fmsb->block_ec[i]);
-
 		ai->fm->e[i] = e;
 	}
 
@@ -969,7 +950,6 @@ free_raw:
 out:
 	if (ret == UBI_BAD_FASTMAP)
 		ubi_err("Attach by fastmap failed, doing a full scan!");
-
 	return ret;
 }
 
@@ -1005,6 +985,29 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 	if (!fm_raw) {
 		ret = -ENOMEM;
 
+		/* TODO: nitpick, sorry for being annoying, but this should not
+		 * be difficult to fix. I find it very irritating when there
+		 * are useless blank lines like this - they only make less code
+		 * fit my screen and make large functions even larger.
+		 *
+		 * Why we use blank lines inside a single function? To make
+		 * code more readable. How we make it more readable? By
+		 * separating logically different blocks of code with a
+		 * newline.
+		 *
+		 * What is the perbose of these newlines before goto's? This is
+		 * a single piece of error-handling code - you assing the
+		 * return value and go to the further error processing. These
+		 * newlines serve no purpose just blow the lines number in the
+		 * code. Could we please kill them globally?
+		 *
+		 * I am again sorry - probably this is not completely
+		 * technical, but I gave the explanation why these newlines are
+		 * annying. And as a person who spent a lot of personal
+		 * (non-paid) time maintaining this code and who will keep
+		 * doing this - I think I have right to require to do such
+		 * cosmetic things :-) If you do not agree with my reasoning,
+		 * may be this is better - you'll keep me happier :-) */
 		goto out;
 	}
 
