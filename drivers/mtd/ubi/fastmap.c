@@ -356,6 +356,14 @@ static int scan_pool(struct ubi_device *ubi, struct ubi_attach_info *ai,
 
 		err = ubi_io_read_vid_hdr(ubi, pnum, vh, 0);
 
+		/* TODO: so here again - calling the function and checking what
+		 * it returns I consider to be one logical block which should
+		 * not contain newlines inbetween. You are inconsistent about
+		 * this and in some places you have a newline, in some you
+		 * don't. Could we please remove them globally in cases like
+		 * this?
+		 * Again my disclaimer: sorry, I hope this is not too annoying
+		 * for you. */
 		if (err == UBI_IO_FF || err == UBI_IO_FF_BITFLIPS)
 			continue;
 		else if (err == 0 || err == UBI_IO_BITFLIPS) {
@@ -394,6 +402,12 @@ static int scan_pool(struct ubi_device *ubi, struct ubi_attach_info *ai,
 				list_del(&tmp_aeb->u.list);
 			}
 
+			/* TODO: could you please follow UBI style of how we
+			 * split lines? Notice that we aling arguments WRT the
+			 * bracket. We use few tabs, and then at the and use
+			 * few spaces for fine-tuning the alignment. Please,
+			 * let's be consistent. Take a look at any UBI file for
+			 * example. */
 			new_aeb = kmem_cache_alloc(ai->aeb_slab_cache,
 				GFP_KERNEL);
 			if (!new_aeb) {
