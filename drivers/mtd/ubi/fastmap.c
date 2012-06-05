@@ -718,6 +718,17 @@ out:
  * ubi_scan_fastmap - scan the fastmap
  * @ubi: UBI device object
  * @ai: UBI attach info to be filled
+ *
+ * TODO: not urgent, but at some point - check the code with kernel doc and fix
+ * its complaints.
+ *
+ * TODO: not urgent, but for consistency, follow the UBI/UBIFS style and put a
+ * dot at the end of the first short description sentence (globally):
+ *    ubi_scan_fastmap - scan the fastmap. (<-dot).
+ *
+ * TODO: not urgent, but it is desireble to document error codes in the header
+ * comments and probably describe what the function does, if there is something
+ * to say (globally).
  */
 int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 {
@@ -744,8 +755,13 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		goto out;
 	}
 
+	/* TODO: If 'ubi_io_read()' returns you UBI_IO_BITFLIP, this means that
+	 * the PEB has a bit-flip and has to be scrubbed. How will the
+	 * superblock be scrubbed or how is the bit-flip guaranteed to be taken
+	 * care of? */
 	ret = ubi_io_read(ubi, fmsb, sb_pnum, ubi->leb_start, sizeof(*fmsb));
 	if (ret && ret != UBI_IO_BITFLIPS) {
+		/* TODO: what are the error codes > 0 ? Why is this check? */
 		if (ret > 0)
 			ret = UBI_BAD_FASTMAP;
 
@@ -754,7 +770,17 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		goto out;
 	}
 
+	/* TODO: please, use 'be32_to_cpu()' _every_ time you access a __be32 /
+	 * etc field. Please, look how things are done in io.c. Please, check
+	 * and fix globally. */
 	if (fmsb->magic != UBI_FM_SB_MAGIC) {
+		/* TODO: not urgent, but examine all the error messages and
+		 * print more information there. Here you should print what was
+		 * read and what was expected. See io.c and do similarly or
+		 * better.
+		 * Please, change globally. E.g., when you print about bad
+		 * version - print what was expected and what was actually
+		 * found. */
 		ubi_err("super block magic does not match");
 		ret = UBI_BAD_FASTMAP;
 		kfree(fmsb);
