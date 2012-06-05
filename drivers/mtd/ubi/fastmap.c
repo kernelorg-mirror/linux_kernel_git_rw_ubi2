@@ -447,6 +447,7 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 {
 	struct list_head used;
 	struct list_head eba_orphans;
+	/* TODO: please, try to declare variables of the same time on one line */
 	struct ubi_ainf_volume *av;
 	struct ubi_ainf_peb *aeb, *tmp_aeb, *_tmp_aeb;
 	struct ubi_ec_hdr *ech;
@@ -458,6 +459,8 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 	struct ubi_fm_volhdr *fmvhdr;
 	struct ubi_fm_eba *fm_eba;
 
+	/* TODO: no blank lines in the local variable declaration block
+	 * please. */
 	int ret, i, j;
 	size_t fm_pos = 0;
 	unsigned long long max_sqnum = 0;
@@ -735,8 +738,7 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	struct ubi_fm_sb *fmsb;
 	struct ubi_vid_hdr *vh;
 	struct ubi_ec_hdr *ech;
-	int ret, i, used_blocks, pnum;
-	int sb_pnum = 0;
+	int ret, i, used_blocks, pnum, sb_pnum = 0;
 	char *fm_raw;
 	size_t fm_size;
 	__be32 crc, tmp_crc;
@@ -961,25 +963,19 @@ out:
 static int ubi_write_fastmap(struct ubi_device *ubi,
 			     struct ubi_fastmap_layout *new_fm)
 {
-	int ret;
 	size_t fm_pos = 0;
 	char *fm_raw;
-	int i, j;
-
 	struct ubi_fm_sb *fmsb;
 	struct ubi_fm_hdr *fmh;
 	struct ubi_fm_scan_pool *fmpl;
 	struct ubi_fm_ec *fec;
 	struct ubi_fm_volhdr *fvh;
 	struct ubi_fm_eba *feba;
-
 	struct rb_node *node;
 	struct ubi_wl_entry *wl_e;
 	struct ubi_volume *vol;
-
 	struct ubi_vid_hdr *avhdr, *dvhdr;
-
-	int free_peb_count, used_peb_count, vol_count;
+	int ret, i, j, free_peb_count, used_peb_count, vol_count;
 
 	fm_raw = vzalloc(new_fm->size);
 	if (!fm_raw) {
