@@ -455,6 +455,9 @@ out:
  * @fm_raw: the fastmap it self as byte array
  * @fm_size: size of the fastmap in bytes
  */
+/* TODO: please, make all pointers like 'fm_raw' of type void. It is indeed a
+ * pointer to data blob, it is not a pointer to a string of characters. Note,
+ * that in pointer arithmetics void * is the same as char *. */
 static int ubi_attach_fastmap(struct ubi_device *ubi,
 			      struct ubi_attach_info *ai,
 			      char *fm_raw, size_t fm_size)
@@ -503,6 +506,10 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 	if (fm_pos >= fm_size)
 		goto fail_bad;
 
+	/* TODO: this is difficult to read. Can we please have instead an
+	 * aggregate data structure? I did not think hard on it may be you have
+	 * a good reason for this difficult style, but on the first glance it
+	 * does not look like. And where are all the endiness stuff?  */
 	fmhdr = (struct ubi_fm_hdr *)(fm_raw + fm_pos);
 	fm_pos += sizeof(*fmhdr);
 	if (fm_pos >= fm_size)
