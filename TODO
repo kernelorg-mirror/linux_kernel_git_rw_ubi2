@@ -9,4 +9,3 @@ to the ubi-utils.git repository, to a separate branch at the beginning
    test UBI + fastmap with it.
 3. Test the autoresize feature
 4. Test 'ubi_flush()'
-5. Test
