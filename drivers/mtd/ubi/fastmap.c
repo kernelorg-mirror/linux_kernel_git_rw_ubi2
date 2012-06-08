@@ -349,6 +349,8 @@ static int scan_pool(struct ubi_device *ubi, struct ubi_attach_info *ai,
 	 * after the creation of the fastmap
 	 */
 	for (i = 0; i < pool_size; i++) {
+		int scrub = 0;
+
 		pnum = be32_to_cpu(pebs[i]);
 
 		if (ubi_io_is_bad(ubi, pnum)) {
@@ -358,41 +360,32 @@ static int scan_pool(struct ubi_device *ubi, struct ubi_attach_info *ai,
 			goto out;
 		}
 
+		err = ubi_io_read_ec_hdr(ubi, pnum, ech, 0);
+		if (err && err != UBI_IO_BITFLIPS) {
+			dbg_bld("unable to read EC header!");
+			ret = err > 0 ? UBI_BAD_FASTMAP : err;
+			goto out;
+		} else if (ret == UBI_IO_BITFLIPS)
+			scrub = 1;
+
+		if (be32_to_cpu(ech->image_seq) != ubi->image_seq) {
+			dbg_bld("image seq mismatch!");
+			err = UBI_BAD_FASTMAP;
+			goto out;
+		}
+
 		err = ubi_io_read_vid_hdr(ubi, pnum, vh, 0);
+		if (err == UBI_IO_FF || err == UBI_IO_FF_BITFLIPS) {
+			scrub = 1;
+			//TODO SCRUB!
+			add_aeb(ai, &ai->free, pnum, be64_to_cpu(ech->ec));
 
-		/* TODO: so here again - calling the function and checking what
-		 * it returns I consider to be one logical block which should
-		 * not contain newlines inbetween. You are inconsistent about
-		 * this and in some places you have a newline, in some you
-		 * don't. Could we please remove them globally in cases like
-		 * this?
-		 * Again my disclaimer: sorry, I hope this is not too annoying
-		 * for you. */
-		if (err == UBI_IO_FF || err == UBI_IO_FF_BITFLIPS)
 			continue;
-		else if (err == 0 || err == UBI_IO_BITFLIPS) {
-			int scrub = 0;
-
-			ubi_msg("Found non empty PEB:%i in pool", pnum);
+		} else if (err == 0 || err == UBI_IO_BITFLIPS) {
+			dbg_bld("Found non empty PEB:%i in pool", pnum);
 
 			if (err == UBI_IO_BITFLIPS)
 				scrub = 1;
-
-			err = ubi_io_read_ec_hdr(ubi, pnum, ech, 0);
-			if (err && err != UBI_IO_BITFLIPS) {
-				dbg_bld("unable to read EC header!");
-				ret = err > 0 ? UBI_BAD_FASTMAP : err;
-
-				goto out;
-			} else if (ret == UBI_IO_BITFLIPS)
-				scrub = 1;
-
-			if (be32_to_cpu(ech->image_seq) != ubi->image_seq) {
-				dbg_bld("image seq mismatch!");
-				err = UBI_BAD_FASTMAP;
-
-				goto out;
-			}
 
 			found_orphan = 0;
 			list_for_each_entry(tmp_aeb, eba_orphans, u.list) {
