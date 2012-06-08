@@ -1366,6 +1366,14 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 		kfree(old_fm);
 	}
 
+	/* Ensure that the PEBs of the old fastmap got erased and added to the
+	 * free list before we write the fastmap. Otherwise fastmp does not
+	 * see these PEBs and we leak them.
+	 * FIXME: Rewrite ubi_wl_flush() such that we can flush only the
+	 * erase work instead of all work.
+	 */
+	ubi_wl_flush(ubi);
+
 	ret = ubi_write_fastmap(ubi, new_fm);
 out_unlock:
 	mutex_unlock(&ubi->fm_mutex);
