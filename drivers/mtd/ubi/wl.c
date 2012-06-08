@@ -441,10 +441,9 @@ static struct ubi_wl_entry *find_early_wl_entry(struct rb_root *root,
  * If max_pnum is negative a PEB with a mean EC will be selected.
  * Must be called with wl_lock held!
  */
-int ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum)
+struct ubi_wl_entry *ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum)
 {
-	int ret = -ENOSPC;
-	struct ubi_wl_entry *e;
+	struct ubi_wl_entry *e = NULL;
 
 	if (!ubi->free.rb_node) {
 		ubi_err("no free eraseblocks");
@@ -461,13 +460,12 @@ int ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum)
 		goto out;
 
 	self_check_in_wl_tree(ubi, e, &ubi->free);
-	ret = e->pnum;
 
 	/* remove it from the free list,
 	 * the wl subsystem does no longer know this erase block */
 	rb_erase(&e->u.rb, &ubi->free);
 out:
-	return ret;
+	return e;
 }
 
 /**

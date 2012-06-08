@@ -1191,24 +1191,6 @@ out:
 }
 
 /**
- * get_ec - returns the erase counter of a given PEB
- * @ubi: UBI device object
- * @pnum: PEB number
- */
-static int get_ec(struct ubi_device *ubi, int pnum)
-{
-	struct ubi_wl_entry *e;
-
-	e = ubi->lookuptbl[pnum];
-
-	/* can this really happen? */
-	if (!e)
-		return ubi->mean_ec ?: 1;
-	else
-		return e->ec;
-}
-
-/**
  * ubi_update_fastmap - will be called by UBI if a volume changes or
  * a fastmap pool becomes full.
  * @ubi: UBI device object
@@ -1217,6 +1199,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 {
 	int ret, i;
 	struct ubi_fastmap_layout *new_fm, *old_fm;
+	struct ubi_wl_entry *tmp_e;
 
 	if (ubi->ro_mode)
 		return 0;
@@ -1252,12 +1235,12 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 	ubi->fm = NULL;
 
 	spin_lock(&ubi->wl_lock);
-	new_fm->e[0]->pnum = ubi_wl_get_fm_peb(ubi, UBI_FM_MAX_START);
+	tmp_e = ubi_wl_get_fm_peb(ubi, UBI_FM_MAX_START);
 	spin_unlock(&ubi->wl_lock);
 
 	if (old_fm) {
 		/* no fresh early PEB was found, reuse the old one */
-		if (new_fm->e[0]->pnum < 0) {
+		if (!tmp_e) {
 			struct ubi_ec_hdr *ec_hdr;
 			long long ec;
 
@@ -1309,6 +1292,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 			}
 
 			new_fm->e[0]->pnum = old_fm->e[0]->pnum;
+			new_fm->e[0]->ec = old_fm->e[0]->ec;
 		} else {
 			/* we've got a new early PEB, return the old one */
 			ubi_wl_put_fm_peb(ubi, old_fm->e[0], 0);
@@ -1318,7 +1302,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 		for (i = 1; i < old_fm->used_blocks; i++)
 			ubi_wl_put_fm_peb(ubi, old_fm->e[i], 0);
 	} else {
-		if (new_fm->e[0]->pnum < 0) {
+		if (!tmp_e) {
 			ubi_err("could not find an early PEB");
 			ret = -ENOSPC;
 
@@ -1326,7 +1310,8 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 		}
 	}
 
-	new_fm->e[0]->ec = get_ec(ubi, new_fm->e[0]->pnum);
+	new_fm->e[0]->pnum = tmp_e->pnum;
+	new_fm->e[0]->ec = tmp_e->ec;
 
 	if (new_fm->used_blocks > UBI_FM_MAX_BLOCKS) {
 		ubi_err("fastmap too large");
@@ -1340,10 +1325,10 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 
 	for (i = 1; i < new_fm->used_blocks; i++) {
 		spin_lock(&ubi->wl_lock);
-		new_fm->e[i]->pnum = ubi_wl_get_fm_peb(ubi, -1);
+		tmp_e = ubi_wl_get_fm_peb(ubi, -1);
 		spin_unlock(&ubi->wl_lock);
 
-		if (new_fm->e[i]->pnum < 0) {
+		if (!new_fm->e[i]) {
 			ubi_err("could not get any free erase block");
 
 			while (i--) {
@@ -1355,7 +1340,8 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 			goto err;
 		}
 
-		new_fm->e[i]->ec = get_ec(ubi, new_fm->e[i]->pnum);
+		new_fm->e[i]->pnum = tmp_e->pnum;
+		new_fm->e[i]->ec = tmp_e->ec;
 	}
 
 	if (old_fm) {
