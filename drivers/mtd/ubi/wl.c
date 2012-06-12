@@ -1821,7 +1821,7 @@ static int self_check_ec(struct ubi_device *ubi, int pnum, int ec)
 	}
 
 	read_ec = be64_to_cpu(ec_hdr->ec);
-	if (ec != read_ec) {
+	if (ec != read_ec && read_ec - ec > 1) {
 		ubi_err("self-check failed for PEB %d", pnum);
 		ubi_err("read EC is %lld, should be %d", read_ec, ec);
 		dump_stack();
