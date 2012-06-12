@@ -407,7 +407,7 @@ static int scan_pool(struct ubi_device *ubi, struct ubi_attach_info *ai,
 		err = ubi_io_read_vid_hdr(ubi, pnum, vh, 0);
 		if (err == UBI_IO_FF || err == UBI_IO_FF_BITFLIPS) {
 			unmap_peb(ai, pnum);
-			ubi_msg("Adding PEB to free: %i", pnum);
+			dbg_bld("Adding PEB to free: %i", pnum);
 			if (err == UBI_IO_FF_BITFLIPS)
 				add_aeb(ai, &ai->free, pnum, be64_to_cpu(ech->ec), 1);
 			else
