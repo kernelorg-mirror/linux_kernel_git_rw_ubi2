@@ -1251,9 +1251,6 @@ static int erase_worker(struct ubi_device *ubi, struct ubi_work *wl_wrk,
 		 * protected physical eraseblocks.
 		 */
 		serve_prot_queue(ubi);
-
-		/* And take care about wear-leveling */
-		err = ensure_wear_leveling(ubi);
 		return err;
 	}
 
