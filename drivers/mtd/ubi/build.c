@@ -887,6 +887,7 @@ int ubi_attach_mtd_dev(struct mtd_info *mtd, int ubi_num, int vid_hdr_offset)
 	ubi->autoresize_vol_id = -1;
 
 	ubi->fm_pool.used = ubi->fm_pool.size = 0;
+	ubi->fm_wl_pool.used = ubi->fm_wl_pool.size = 0;
 
 	/*
 	 * fm_pool.max_size is 5% of the total number of PEBs but it's also
@@ -897,7 +898,10 @@ int ubi_attach_mtd_dev(struct mtd_info *mtd, int ubi_num, int vid_hdr_offset)
 	if (ubi->fm_pool.max_size < UBI_FM_MIN_POOL_SIZE)
 		ubi->fm_pool.max_size = UBI_FM_MIN_POOL_SIZE;
 
+	ubi->fm_wl_pool.max_size = UBI_FM_WL_POOL_SIZE;
+
 	ubi_msg("fastmap pool size: %d", ubi->fm_pool.max_size);
+	ubi_msg("fastmap WL pool size: %d", ubi->fm_wl_pool.max_size);
 
 	mutex_init(&ubi->buf_mutex);
 	mutex_init(&ubi->ckvol_mutex);

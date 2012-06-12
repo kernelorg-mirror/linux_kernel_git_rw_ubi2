@@ -507,7 +507,6 @@ retry:
 	 */
 	rb_erase(&e->u.rb, &ubi->free);
 	dbg_wl("PEB %d EC %d", e->pnum, e->ec);
-	prot_queue_add(ubi, e);
 	spin_unlock(&ubi->wl_lock);
 
 	err = ubi_self_check_all_ff(ubi, e->pnum, ubi->vid_hdr_aloffset,
@@ -520,6 +519,44 @@ retry:
 	return e->pnum;
 }
 
+static int refill_wl_pool(struct ubi_device *ubi)
+{
+	int ret, i;
+	struct ubi_fm_pool *pool = &ubi->fm_wl_pool;
+	struct ubi_wl_entry *e;
+
+	spin_lock(&ubi->wl_lock);
+	if (pool->used != pool->size && pool->size) {
+		spin_unlock(&ubi->wl_lock);
+		return 0;
+	}
+
+	for (i = 0; i < pool->max_size; i++) {
+		if (!ubi->free.rb_node) {
+			spin_unlock(&ubi->wl_lock);
+			break;
+		}
+
+		e = find_wl_entry(&ubi->free, WL_FREE_MAX_DIFF);
+		self_check_in_wl_tree(ubi, e, &ubi->free);
+		rb_erase(&e->u.rb, &ubi->free);
+
+		pool->pebs[i] = e->pnum;
+	}
+	pool->size = i;
+	spin_unlock(&ubi->wl_lock);
+
+	ret = ubi_update_fastmap(ubi);
+	if (ret) {
+		ubi_ro_mode(ubi);
+
+		return ret > 0 ? -EINVAL : ret;
+	}
+	pool->used = 0;
+
+	return pool->size ? 0 : -ENOSPC;
+}
+
 /* ubi_wl_get_peb - works exaclty like __ubi_wl_get_peb but keeps track of
  * the fastmap pool.
  */
@@ -529,6 +566,8 @@ int ubi_wl_get_peb(struct ubi_device *ubi)
 	int ret;
 
 	mutex_lock(&ubi->fm_pool_mutex);
+
+	refill_wl_pool(ubi);
 
 	/* pool contains no free blocks, create a new one
 	 * and write a fastmap */
@@ -549,13 +588,37 @@ int ubi_wl_get_peb(struct ubi_device *ubi)
 			return ret > 0 ? -EINVAL : ret;
 		}
 	}
-	mutex_unlock(&ubi->fm_pool_mutex);
 
 	/* we got not a single free PEB */
 	if (!pool->size)
-		return -ENOSPC;
+		ret = -ENOSPC;
+	else {
+		spin_lock(&ubi->wl_lock);
+		ret = pool->pebs[pool->used++];
+		prot_queue_add(ubi, ubi->lookuptbl[ret]);
+		spin_unlock(&ubi->wl_lock);
+	}
 
-	return pool->pebs[pool->used++];
+	mutex_unlock(&ubi->fm_pool_mutex);
+
+	return ret;
+}
+
+/* get_peb_for_wl - returns a PEB to be used internally by the WL sub-system
+ *
+ * @ubi: UBI device description object
+ */
+static struct ubi_wl_entry *get_peb_for_wl(struct ubi_device *ubi)
+{
+	struct ubi_fm_pool *pool = &ubi->fm_wl_pool;
+	int pnum;
+
+	if (pool->used == pool->size || !pool->size) {
+		return NULL;
+	} else {
+		pnum = pool->pebs[pool->used++];
+		return ubi->lookuptbl[pnum];
+	}
 }
 
 /**
@@ -830,7 +893,9 @@ static int wear_leveling_worker(struct ubi_device *ubi, struct ubi_work *wrk,
 		 * counters differ much enough, start wear-leveling.
 		 */
 		e1 = rb_entry(rb_first(&ubi->used), struct ubi_wl_entry, u.rb);
-		e2 = find_wl_entry(&ubi->free, WL_FREE_MAX_DIFF);
+		e2 = get_peb_for_wl(ubi);
+		if (!e2)
+			goto out_cancel;
 
 		if (!(e2->ec - e1->ec >= UBI_WL_THRESHOLD)) {
 			dbg_wl("no WL needed: min used EC %d, max free EC %d",
@@ -845,14 +910,15 @@ static int wear_leveling_worker(struct ubi_device *ubi, struct ubi_work *wrk,
 		/* Perform scrubbing */
 		scrubbing = 1;
 		e1 = rb_entry(rb_first(&ubi->scrub), struct ubi_wl_entry, u.rb);
-		e2 = find_wl_entry(&ubi->free, WL_FREE_MAX_DIFF);
+		e2 = get_peb_for_wl(ubi);
+		if (!e2)
+			goto out_cancel;
+
 		self_check_in_wl_tree(ubi, e1, &ubi->scrub);
 		rb_erase(&e1->u.rb, &ubi->scrub);
 		dbg_wl("scrub PEB %d to PEB %d", e1->pnum, e2->pnum);
 	}
 
-	self_check_in_wl_tree(ubi, e2, &ubi->free);
-	rb_erase(&e2->u.rb, &ubi->free);
 	ubi->move_from = e1;
 	ubi->move_to = e2;
 	spin_unlock(&ubi->wl_lock);
