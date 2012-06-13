@@ -47,9 +47,10 @@ out:
  * @list: the target list
  * @pnum: PEB number of the new attach erase block
  * @ec: erease counter of the new LEB
+ * @scrub: scrub this PEB after attaching
  */
 static int add_aeb(struct ubi_attach_info *ai, struct list_head *list,
-		   int pnum, int ec)
+		   int pnum, int ec, int scrub)
 {
 	struct ubi_ainf_peb *aeb;
 
@@ -64,7 +65,8 @@ static int add_aeb(struct ubi_attach_info *ai, struct list_head *list,
 	aeb->pnum = pnum;
 	aeb->ec = ec;
 	aeb->lnum = -1;
-	aeb->scrub = aeb->copy_flag = aeb->sqnum = 0;
+	aeb->scrub = scrub;
+	aeb->copy_flag = aeb->sqnum = 0;
 
 	ai->ec_sum += aeb->ec;
 	ai->ec_count++;
@@ -376,10 +378,7 @@ static int scan_pool(struct ubi_device *ubi, struct ubi_attach_info *ai,
 
 		err = ubi_io_read_vid_hdr(ubi, pnum, vh, 0);
 		if (err == UBI_IO_FF || err == UBI_IO_FF_BITFLIPS) {
-			scrub = 1;
-			//TODO SCRUB!
-			add_aeb(ai, &ai->free, pnum, be64_to_cpu(ech->ec));
-
+			add_aeb(ai, &ai->free, pnum, be64_to_cpu(ech->ec), 1);
 			continue;
 		} else if (err == 0 || err == UBI_IO_BITFLIPS) {
 			dbg_bld("Found non empty PEB:%i in pool", pnum);
@@ -530,7 +529,7 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 			goto fail_bad;
 
 		add_aeb(ai, &ai->free, be32_to_cpu(fmec->pnum),
-			be32_to_cpu(fmec->ec));
+			be32_to_cpu(fmec->ec), 0);
 	}
 
 	/* read EC values from used list */
@@ -541,7 +540,7 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 			goto fail_bad;
 
 		add_aeb(ai, &used, be32_to_cpu(fmec->pnum),
-			be32_to_cpu(fmec->ec));
+			be32_to_cpu(fmec->ec), 0);
 	}
 
 	ai->mean_ec = div_u64(ai->ec_sum, ai->ec_count);
