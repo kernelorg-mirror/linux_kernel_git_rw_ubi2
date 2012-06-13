@@ -422,11 +422,13 @@ static struct ubi_wl_entry *find_early_wl_entry(struct rb_root *root,
 {
 	struct rb_node *p;
 	struct ubi_wl_entry *e, *victim = NULL;
+	int max_ec = UBI_MAX_ERASECOUNTER;
 
 	ubi_rb_for_each_entry(p, e, root, u.rb) {
-		if (e->pnum < max_pnum) {
+		if (e->pnum < max_pnum && e->ec < max_ec) {
 			victim = e;
 			max_pnum = e->pnum;
+			max_ec = e->ec;
 		}
 	}
 
