@@ -214,13 +214,14 @@ struct ubi_volume_desc;
 
 /**
  * struct ubi_fastmap_layout - in-memory fastmap data structure.
- * @peb: PEBs used by the current fastmap
- * @ec: the erase counter of each used PEB
+ * @e: PEBs used by the current fastmap
+ * @to_be_tortured: if non-zero tortured this PEB
  * @size: size of the fastmap in bytes
  * @used_blocks: number of used PEBs
  */
 struct ubi_fastmap_layout {
 	struct ubi_wl_entry *e[UBI_FM_MAX_BLOCKS];
+	int to_be_tortured[UBI_FM_MAX_BLOCKS];
 	size_t size;
 	int used_blocks;
 };
