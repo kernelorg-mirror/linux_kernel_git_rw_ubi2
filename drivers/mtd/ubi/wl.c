@@ -837,7 +837,8 @@ static int do_sync_erase(struct ubi_device *ubi, struct ubi_wl_entry *e,
  *
  * see: ubi_wl_put_peb()
  */
-int ubi_wl_put_fm_peb(struct ubi_device *ubi, struct ubi_wl_entry *used_e, int torture)
+int ubi_wl_put_fm_peb(struct ubi_device *ubi, struct ubi_wl_entry *used_e,
+    int torture)
 {
 	struct ubi_wl_entry *e;
 	int pnum = used_e->pnum;
