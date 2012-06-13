@@ -712,6 +712,13 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 	if (max_sqnum > ai->max_sqnum)
 		ai->max_sqnum = max_sqnum;
 
+	list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &used, u.list) {
+		list_del(&tmp_aeb->u.list);
+		dbg_bld("adding PEB from used to erase list: %i", tmp_aeb->pnum);
+		add_aeb(ai, &ai->erase, tmp_aeb->pnum, tmp_aeb->ec, 0);
+		kmem_cache_free(ai->aeb_slab_cache, tmp_aeb);
+	}
+
 	return 0;
 
 fail_bad:
