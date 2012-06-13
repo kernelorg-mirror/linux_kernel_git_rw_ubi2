@@ -1262,6 +1262,22 @@ int ubi_attach(struct ubi_device *ubi)
 	if (err)
 		goto out_wl;
 
+	if (ai->fm) {
+		struct ubi_attach_info *scan_ai;
+		scan_ai = kzalloc(sizeof(struct ubi_attach_info), GFP_KERNEL);
+		if (!scan_ai)
+			goto out_ai;
+
+		err = scan_all(ubi, scan_ai);
+		if (err) {
+			kfree(scan_ai);
+			goto out_ai;
+		}
+
+		self_check_eba(ubi, ai, scan_ai);
+		ubi_destroy_ai(ubi, scan_ai);
+	}
+
 	ubi_destroy_ai(ubi, ai);
 
 	/* TODO: UBI auto formats the flash if it is empty (see ubi->is_empty).
