@@ -1591,7 +1591,7 @@ static void cancel_pending(struct ubi_device *ubi)
  */
 int ubi_wl_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 {
-	int err, i;
+	int err, i, found_pebs = 0;
 	struct rb_node *rb1, *rb2;
 	struct ubi_ainf_volume *av;
 	struct ubi_ainf_peb *aeb, *tmp;
@@ -1630,6 +1630,8 @@ int ubi_wl_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 			kmem_cache_free(ubi_wl_entry_slab, e);
 			goto out_free;
 		}
+
+		found_pebs++;
 	}
 
 	list_for_each_entry(aeb, &ai->free, u.list) {
@@ -1647,6 +1649,8 @@ int ubi_wl_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		wl_tree_add(e, &ubi->free);
 
 		ubi->lookuptbl[e->pnum] = e;
+
+		found_pebs++;
 	}
 
 	ubi_rb_for_each_entry(rb1, av, &ai->volumes, rb) {
@@ -1672,8 +1676,17 @@ int ubi_wl_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 				       e->pnum, e->ec);
 				wl_tree_add(e, &ubi->scrub);
 			}
+
+			found_pebs++;
 		}
 	}
+
+	dbg_wl("found %i PEBs", found_pebs);
+
+	if (ai->fm)
+		ubi_assert(ubi->peb_count == found_pebs + ai->fm->used_blocks);
+	else
+		ubi_assert(ubi->peb_count == found_pebs);
 
 	if (ubi->avail_pebs < WL_RESERVED_PEBS) {
 		ubi_err("no enough physical eraseblocks (%d, need %d)",
