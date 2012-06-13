@@ -402,12 +402,13 @@ static int scan_pool(struct ubi_device *ubi, struct ubi_attach_info *ai,
 
 		err = ubi_io_read_vid_hdr(ubi, pnum, vh, 0);
 		if (err == UBI_IO_FF || err == UBI_IO_FF_BITFLIPS) {
+			unsigned long long ec = be64_to_cpu(ech->ec);
 			unmap_peb(ai, pnum);
 			dbg_bld("Adding PEB to free: %i", pnum);
 			if (err == UBI_IO_FF_BITFLIPS)
-				add_aeb(ai, &ai->free, pnum, be64_to_cpu(ech->ec), 1);
+				add_aeb(ai, &ai->free, pnum, ec, 1);
 			else
-				add_aeb(ai, &ai->free, pnum, be64_to_cpu(ech->ec), 0);
+				add_aeb(ai, &ai->free, pnum, ec, 0);
 			continue;
 		} else if (err == 0 || err == UBI_IO_BITFLIPS) {
 			dbg_bld("Found non empty PEB:%i in pool", pnum);
@@ -575,7 +576,8 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 		av = add_vol(ai, be32_to_cpu(fmvhdr->vol_id),
 			     be32_to_cpu(fmvhdr->used_ebs),
 			     be32_to_cpu(fmvhdr->data_pad),
-			     fmvhdr->vol_type, be32_to_cpu(fmvhdr->last_eb_bytes));
+			     fmvhdr->vol_type,
+			     be32_to_cpu(fmvhdr->last_eb_bytes));
 
 		if (!av)
 			goto fail_bad;
@@ -688,7 +690,7 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 
 	list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &used, u.list) {
 		list_del(&tmp_aeb->u.list);
-		dbg_bld("adding PEB from used to erase list: %i", tmp_aeb->pnum);
+		dbg_bld("moving PEB from used to erase: %i", tmp_aeb->pnum);
 		add_aeb(ai, &ai->erase, tmp_aeb->pnum, tmp_aeb->ec, 0);
 		kmem_cache_free(ai->aeb_slab_cache, tmp_aeb);
 	}
