@@ -1664,8 +1664,6 @@ int ubi_wl_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 			e->pnum = aeb->pnum;
 			e->ec = aeb->ec;
 			ubi->lookuptbl[e->pnum] = e;
-			if (ubi_is_fm_block(ubi, aeb->pnum))
-				continue;
 
 			if (!aeb->scrub) {
 				dbg_wl("add PEB %d EC %d to the used tree",
