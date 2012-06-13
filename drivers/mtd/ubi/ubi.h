@@ -480,6 +480,7 @@ struct ubi_device {
 	/* Fastmap stuff */
 	struct ubi_fastmap_layout *fm;
 	struct ubi_fm_pool fm_pool;
+	struct ubi_fm_pool fm_wl_pool;
 	struct mutex fm_mutex;
 	struct mutex fm_pool_mutex;
 	int attached_by_scanning;

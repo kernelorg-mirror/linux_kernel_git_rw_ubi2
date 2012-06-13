@@ -500,7 +500,7 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 
 	struct ubi_fm_sb *fmsb;
 	struct ubi_fm_hdr *fmhdr;
-	struct ubi_fm_scan_pool *fmpl;
+	struct ubi_fm_scan_pool *fmpl1, *fmpl2;
 	struct ubi_fm_ec *fmec;
 	struct ubi_fm_volhdr *fmvhdr;
 	struct ubi_fm_eba *fm_eba;
@@ -547,11 +547,18 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 	if (fmhdr->magic != UBI_FM_HDR_MAGIC)
 		goto fail_bad;
 
-	fmpl = (struct ubi_fm_scan_pool *)(fm_raw + fm_pos);
-	fm_pos += sizeof(*fmpl);
+	fmpl1 = (struct ubi_fm_scan_pool *)(fm_raw + fm_pos);
+	fm_pos += sizeof(*fmpl1);
 	if (fm_pos >= fm_size)
 		goto fail_bad;
-	if (fmpl->magic != UBI_FM_POOL_MAGIC)
+	if (fmpl1->magic != UBI_FM_POOL_MAGIC)
+		goto fail_bad;
+
+	fmpl2 = (struct ubi_fm_scan_pool *)(fm_raw + fm_pos);
+	fm_pos += sizeof(*fmpl2);
+	if (fm_pos >= fm_size)
+		goto fail_bad;
+	if (fmpl2->magic != UBI_FM_POOL_MAGIC)
 		goto fail_bad;
 
 	/* read EC values from free list */
@@ -694,20 +701,15 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 		kfree(ech);
 	}
 
-	/*
-	 * The remainning PEBs in the used list are not used.
-	 * They lived in the fastmap pool but got never used.
-	 */
-	list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &used, u.list) {
-		list_del(&tmp_aeb->u.list);
-		list_add_tail(&tmp_aeb->u.list, &ai->free);
-	}
-
-	ret = scan_pool(ubi, ai, fmpl->pebs, be32_to_cpu(fmpl->size),
+	ret = scan_pool(ubi, ai, fmpl1->pebs, be32_to_cpu(fmpl1->size),
 		&max_sqnum, &eba_orphans);
 	if (ret)
 		goto fail;
 
+	ret = scan_pool(ubi, ai, fmpl2->pebs, be32_to_cpu(fmpl2->size),
+		&max_sqnum, &eba_orphans);
+	if (ret)
+		goto fail;
 
 	if (max_sqnum > ai->max_sqnum)
 		ai->max_sqnum = max_sqnum;
@@ -1024,7 +1026,7 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 	char *fm_raw;
 	struct ubi_fm_sb *fmsb;
 	struct ubi_fm_hdr *fmh;
-	struct ubi_fm_scan_pool *fmpl;
+	struct ubi_fm_scan_pool *fmpl1, *fmpl2;
 	struct ubi_fm_ec *fec;
 	struct ubi_fm_volhdr *fvh;
 	struct ubi_fm_eba *feba;
@@ -1100,13 +1102,21 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 	used_peb_count = 0;
 	vol_count = 0;
 
-	fmpl = (struct ubi_fm_scan_pool *)(fm_raw + fm_pos);
-	fm_pos += sizeof(*fmpl);
-	fmpl->magic = UBI_FM_POOL_MAGIC;
-	fmpl->size = cpu_to_be32(ubi->fm_pool.size);
+	fmpl1 = (struct ubi_fm_scan_pool *)(fm_raw + fm_pos);
+	fm_pos += sizeof(*fmpl1);
+	fmpl1->magic = UBI_FM_POOL_MAGIC;
+	fmpl1->size = cpu_to_be32(ubi->fm_pool.size);
 
 	for (i = 0; i < ubi->fm_pool.size; i++)
-		fmpl->pebs[i] = cpu_to_be32(ubi->fm_pool.pebs[i]);
+		fmpl1->pebs[i] = cpu_to_be32(ubi->fm_pool.pebs[i]);
+
+	fmpl2 = (struct ubi_fm_scan_pool *)(fm_raw + fm_pos);
+	fm_pos += sizeof(*fmpl2);
+	fmpl2->magic = UBI_FM_POOL_MAGIC;
+	fmpl2->size = cpu_to_be32(ubi->fm_wl_pool.size);
+
+	for (i = 0; i < ubi->fm_wl_pool.size; i++)
+		fmpl2->pebs[i] = cpu_to_be32(ubi->fm_wl_pool.pebs[i]);
 
 	for (node = rb_first(&ubi->free); node; node = rb_next(node)) {
 		wl_e = rb_entry(node, struct ubi_wl_entry, u.rb);
@@ -1249,6 +1259,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 		return -ENOMEM;
 
 	new_fm->size = sizeof(struct ubi_fm_hdr) + \
+			sizeof(struct ubi_fm_scan_pool) + \
 			sizeof(struct ubi_fm_scan_pool) + \
 			(ubi->peb_count * sizeof(struct ubi_fm_ec)) + \
 			(sizeof(struct ubi_fm_eba) + \
