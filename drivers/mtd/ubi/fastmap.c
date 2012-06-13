@@ -1387,8 +1387,8 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 	/* Ensure that the PEBs of the old fastmap got erased and added to the
 	 * free list before we write the fastmap. Otherwise fastmp does not
 	 * see these PEBs and we leak them.
-	 * FIXME: Rewrite ubi_wl_flush() such that we can flush only the
-	 * erase work instead of all work.
+	 * We need the flush also to ensure that no to be scrubbed PEBs are in
+	 * flight.
 	 */
 	ubi_wl_flush(ubi);
 
