@@ -1371,8 +1371,12 @@ void ubi_destroy_ai(struct ubi_device *ubi, struct ubi_attach_info *ai)
 
 	/* Return all PEBs back to the WL sub-system */
 	if (ai->fm) {
-		while(ai->fm->used_blocks--)
-			ubi_wl_put_fm_peb(ubi, ai->fm->e[ai->fm->used_blocks], 0);
+		int i, torture;
+
+		for (i = 0; i < ai->fm->used_blocks; i++) {
+			torture = ai->fm->to_be_tortured[i];
+			ubi_wl_put_fm_peb(ubi, ai->fm->e[i], torture);
+		}
 
 		kfree(ai->fm);
 	}
