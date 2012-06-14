@@ -827,13 +827,14 @@ static int do_sync_erase(struct ubi_device *ubi, struct ubi_wl_entry *e,
  *
  * see: ubi_wl_put_peb()
  */
-int ubi_wl_put_fm_peb(struct ubi_device *ubi, struct ubi_wl_entry *used_e,
-    int torture)
+int ubi_wl_put_fm_peb(struct ubi_device *ubi, struct ubi_wl_entry *fm_e,
+		      int torture)
 {
 	struct ubi_wl_entry *e;
-	int pnum = used_e->pnum;
+	int pnum = fm_e->pnum;
 
 	dbg_wl("PEB %d", pnum);
+
 	ubi_assert(pnum >= 0);
 	ubi_assert(pnum < ubi->peb_count);
 
@@ -845,11 +846,11 @@ int ubi_wl_put_fm_peb(struct ubi_device *ubi, struct ubi_wl_entry *used_e,
 	 * has never seen any PEB used by the original fastmap.
 	 */
 	if (!e) {
-		e = used_e;
-
+		e = fm_e;
 		ubi_assert(e->ec);
 		ubi->lookuptbl[pnum] = e;
-	}
+	} else
+		kfree(fm_e);
 
 	spin_unlock(&ubi->wl_lock);
 
