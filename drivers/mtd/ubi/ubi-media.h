@@ -440,9 +440,10 @@ struct ubi_fm_hdr {
 	__be32 magic;
 	__be32 free_peb_count;
 	__be32 used_peb_count;
+	__be32 scrub_peb_count;
 	__be32 vol_count;
 	__be32 bad_peb_count;
-	__u8 padding[12];
+	__u8 padding[8];
 } __packed;
 
 /* struct ubi_fm_hdr is followed by struct ubi_fm_scan_pool */
