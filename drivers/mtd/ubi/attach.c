@@ -1278,7 +1278,7 @@ int ubi_attach(struct ubi_device *ubi)
 	if (err)
 		goto out_wl;
 
-	if (ai->fm) {
+	if (ubi->fm) {
 		struct ubi_attach_info *scan_ai;
 		scan_ai = kzalloc(sizeof(struct ubi_attach_info), GFP_KERNEL);
 		if (!scan_ai)
@@ -1400,18 +1400,6 @@ void ubi_destroy_ai(struct ubi_device *ubi, struct ubi_attach_info *ai)
 
 	if (ai->aeb_slab_cache)
 		kmem_cache_destroy(ai->aeb_slab_cache);
-
-	/* Return all PEBs back to the WL sub-system */
-	if (ai->fm) {
-		int i, torture;
-
-		for (i = 0; i < ai->fm->used_blocks; i++) {
-			torture = ai->fm->to_be_tortured[i];
-			ubi_wl_put_fm_peb(ubi, ai->fm->e[i], torture);
-		}
-
-		kfree(ai->fm);
-	}
 
 	kfree(ai);
 }
