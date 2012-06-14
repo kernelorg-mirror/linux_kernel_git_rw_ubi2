@@ -1290,11 +1290,14 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				goto err;
 			}
 
-			tmp_e->pnum = old_fm->e[0]->pnum;
-			tmp_e->ec = old_fm->e[0]->ec;
+			new_fm->e[0]->pnum = old_fm->e[0]->pnum;
+			new_fm->e[0]->ec = old_fm->e[0]->ec;
 		} else {
 			/* we've got a new early PEB, return the old one */
 			ubi_wl_put_fm_peb(ubi, old_fm->e[0], 0);
+
+			new_fm->e[0]->pnum = tmp_e->pnum;
+			new_fm->e[0]->ec = tmp_e->ec;
 		}
 
 		/* return all other fastmap block to the wl system */
@@ -1307,10 +1310,10 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 
 			goto err;
 		}
-	}
 
-	new_fm->e[0]->pnum = tmp_e->pnum;
-	new_fm->e[0]->ec = tmp_e->ec;
+		new_fm->e[0]->pnum = tmp_e->pnum;
+		new_fm->e[0]->ec = tmp_e->ec;
+	}
 
 	if (new_fm->used_blocks > UBI_FM_MAX_BLOCKS) {
 		ubi_err("fastmap too large");
