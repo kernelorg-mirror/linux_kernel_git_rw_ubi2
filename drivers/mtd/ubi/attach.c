@@ -1278,7 +1278,7 @@ int ubi_attach(struct ubi_device *ubi)
 	if (err)
 		goto out_wl;
 
-	if (ubi->fm) {
+	if (ubi->fm && ubi->dbg->chk_gen) {
 		struct ubi_attach_info *scan_ai;
 		scan_ai = kzalloc(sizeof(struct ubi_attach_info), GFP_KERNEL);
 		if (!scan_ai)
