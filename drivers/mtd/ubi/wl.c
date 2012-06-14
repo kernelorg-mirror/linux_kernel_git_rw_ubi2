@@ -1727,8 +1727,8 @@ int ubi_wl_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 
 	dbg_wl("found %i PEBs", found_pebs);
 
-	if (ai->fm)
-		ubi_assert(ubi->peb_count == found_pebs + ai->fm->used_blocks);
+	if (ubi->fm)
+		ubi_assert(ubi->peb_count == found_pebs + ubi->fm->used_blocks);
 	else
 		ubi_assert(ubi->peb_count == found_pebs);
 
