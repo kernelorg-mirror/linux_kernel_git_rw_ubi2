@@ -560,6 +560,17 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 			be32_to_cpu(fmec->ec), 0);
 	}
 
+	/* read EC values from scrub list */
+	for (i = 0; i < be32_to_cpu(fmhdr->scrub_peb_count); i++) {
+		fmec = (struct ubi_fm_ec *)(fm_raw + fm_pos);
+		fm_pos += sizeof(*fmec);
+		if (fm_pos >= fm_size)
+			goto fail_bad;
+
+		add_aeb(ai, &used, be32_to_cpu(fmec->pnum),
+			be32_to_cpu(fmec->ec), 1);
+	}
+
 	ai->mean_ec = div_u64(ai->ec_sum, ai->ec_count);
 	ai->bad_peb_count = be32_to_cpu(fmhdr->bad_peb_count);
 
@@ -1016,6 +1027,7 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 	struct ubi_volume *vol;
 	struct ubi_vid_hdr *avhdr, *dvhdr;
 	int ret, i, j, free_peb_count, used_peb_count, vol_count;
+	int scrub_peb_count;
 
 	fm_raw = vzalloc(new_fm->size);
 	if (!fm_raw) {
@@ -1055,6 +1067,7 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 	fmh->magic = cpu_to_be32(UBI_FM_HDR_MAGIC);
 	free_peb_count = 0;
 	used_peb_count = 0;
+	scrub_peb_count = 0;
 	vol_count = 0;
 
 	fmpl1 = (struct ubi_fm_scan_pool *)(fm_raw + fm_pos);
@@ -1098,6 +1111,19 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 		ubi_assert(fm_pos <= new_fm->size);
 	}
 	fmh->used_peb_count = cpu_to_be32(used_peb_count);
+
+	for (node = rb_first(&ubi->scrub); node; node = rb_next(node)) {
+		wl_e = rb_entry(node, struct ubi_wl_entry, u.rb);
+		fec = (struct ubi_fm_ec *)(fm_raw + fm_pos);
+
+		fec->pnum = cpu_to_be32(wl_e->pnum);
+		fec->ec = cpu_to_be32(wl_e->ec);
+
+		scrub_peb_count++;
+		fm_pos += sizeof(*fec);
+		ubi_assert(fm_pos <= new_fm->size);
+	}
+	fmh->scrub_peb_count = cpu_to_be32(scrub_peb_count);
 
 	for (i = 0; i < UBI_MAX_VOLUMES + UBI_INT_VOL_COUNT; i++) {
 		vol = ubi->volumes[i];
