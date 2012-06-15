@@ -384,6 +384,7 @@ struct ubi_wl_entry;
  * @fm_pool: in-memory data structure of the fastmap pool
  * @fm_pool_mutex: serializes ubi_wl_get_peb()
  * @fm_mutex: serializes ubi_update_fastmap()
+ * @fm_sem: allows ubi_update_fastmap() to block EBA table changes
  * @attached_by_scanning: this UBI device was attached by the old scanning
  *			  methold. All fastmap volumes have to be deleted.
  *
@@ -482,6 +483,7 @@ struct ubi_device {
 	struct ubi_fastmap_layout *fm;
 	struct ubi_fm_pool fm_pool;
 	struct ubi_fm_pool fm_wl_pool;
+	struct rw_semaphore fm_sem;
 	struct mutex fm_mutex;
 	struct mutex fm_pool_mutex;
 	int attached_by_scanning;
