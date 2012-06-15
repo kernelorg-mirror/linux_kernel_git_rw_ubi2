@@ -803,7 +803,7 @@ static int do_sync_erase(struct ubi_device *ubi, struct ubi_wl_entry *e,
 {
 	struct ubi_work *wl_wrk;
 
-	ubi_msg("sync erase of PEB %i", e->pnum);
+	dbg_wl("sync erase of PEB %i", e->pnum);
 
 	wl_wrk = kmalloc(sizeof(struct ubi_work), GFP_NOFS);
 	if (!wl_wrk)
