@@ -54,10 +54,6 @@ static int add_aeb(struct ubi_attach_info *ai, struct list_head *list,
 {
 	struct ubi_ainf_peb *aeb;
 
-	list_for_each_entry(aeb, list, u.list)
-		if (aeb->pnum == pnum)
-			return 0;
-
 	aeb = kmem_cache_alloc(ai->aeb_slab_cache, GFP_KERNEL);
 	if (!aeb)
 		return -ENOMEM;
