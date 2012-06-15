@@ -388,12 +388,12 @@ static struct ubi_wl_entry *find_mean_wl_entry(struct rb_root *root)
 }
 
 /**
- * find_early_wl_entry - find wear-leveling entry with the lowest pnum.
+ * find_anchor_wl_entry - find wear-leveling entry to used as anchor PEB.
  * @root: the RB-tree where to look for
  * @max_pnum: highest possible pnum
  */
-static struct ubi_wl_entry *find_early_wl_entry(struct rb_root *root,
-						int max_pnum)
+static struct ubi_wl_entry *find_anchor_wl_entry(struct rb_root *root,
+						 int max_pnum)
 {
 	struct rb_node *p;
 	struct ubi_wl_entry *e, *victim = NULL;
@@ -433,7 +433,7 @@ struct ubi_wl_entry *ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum)
 	if (max_pnum < 0)
 		e = find_mean_wl_entry(&ubi->free);
 	else
-		e = find_early_wl_entry(&ubi->free, max_pnum);
+		e = find_anchor_wl_entry(&ubi->free, max_pnum);
 
 	if (!e)
 		goto out;
