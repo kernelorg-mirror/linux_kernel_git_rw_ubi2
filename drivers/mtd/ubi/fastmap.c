@@ -1403,7 +1403,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 		tmp_e = ubi_wl_get_fm_peb(ubi, -1);
 		spin_unlock(&ubi->wl_lock);
 
-		if (!new_fm->e[i]) {
+		if (!tmp_e) {
 			ubi_err("could not get any free erase block");
 
 			while (i--) {
