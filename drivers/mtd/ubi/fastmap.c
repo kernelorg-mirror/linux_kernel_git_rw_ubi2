@@ -1404,18 +1404,18 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 	spin_unlock(&ubi->wl_lock);
 
 	if (old_fm) {
-		/* no fresh early PEB was found, reuse the old one */
+		/* no fresh anchor PEB was found, reuse the old one */
 		if (!tmp_e) {
 			ret = erase_block(ubi, old_fm->e[0]->pnum);
 			if (ret < 0) {
-				ubi_err("could not erase old early PEB");
+				ubi_err("could not erase old anchor PEB");
 				goto err;
 			}
 
 			new_fm->e[0]->pnum = old_fm->e[0]->pnum;
 			new_fm->e[0]->ec = ret;
 		} else {
-			/* we've got a new early PEB, return the old one */
+			/* we've got a new anchor PEB, return the old one */
 			ubi_wl_put_fm_peb(ubi, old_fm->e[0],
 					  old_fm->to_be_tortured[0]);
 
@@ -1429,7 +1429,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 					  old_fm->to_be_tortured[i]);
 	} else {
 		if (!tmp_e) {
-			ubi_err("could not find an early PEB");
+			ubi_err("could not find an anchor PEB");
 			ret = -ENOSPC;
 			goto err;
 		}
