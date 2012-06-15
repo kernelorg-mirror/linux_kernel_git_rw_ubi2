@@ -135,32 +135,11 @@
  */
 #define WL_MAX_FAILURES 32
 
-/**
- * struct ubi_work - UBI work description data structure.
- * @list: a link in the list of pending works
- * @func: worker function
- * @e: physical eraseblock to erase
- * @torture: if the physical eraseblock has to be tortured
- *
- * The @func pointer points to the worker function. If the @cancel argument is
- * not zero, the worker has to free the resources and exit immediately. The
- * worker has to return zero in case of success and a negative error code in
- * case of failure.
- */
-struct ubi_work {
-	struct list_head list;
-	int (*func)(struct ubi_device *ubi, struct ubi_work *wrk, int cancel);
-	/* The below fields are only relevant to erasure works */
-	struct ubi_wl_entry *e;
-	int torture;
-};
-
 static int self_check_ec(struct ubi_device *ubi, int pnum, int ec);
 static int self_check_in_wl_tree(const struct ubi_device *ubi,
 				 struct ubi_wl_entry *e, struct rb_root *root);
 static int self_check_in_pq(const struct ubi_device *ubi,
 			    struct ubi_wl_entry *e);
-
 /**
  *  ubi_ubi_is_fm_block - returns 1 if a PEB is currently used in a fastmap.
  *  @ubi: UBI device description object
@@ -760,6 +739,7 @@ repeat:
  */
 static void schedule_ubi_work(struct ubi_device *ubi, struct ubi_work *wrk)
 {
+	down_read(&ubi->work_sem);
 	spin_lock(&ubi->wl_lock);
 	list_add_tail(&wrk->list, &ubi->works);
 	ubi_assert(ubi->works_count >= 0);
@@ -767,10 +747,20 @@ static void schedule_ubi_work(struct ubi_device *ubi, struct ubi_work *wrk)
 	if (ubi->thread_enabled && !ubi_dbg_is_bgt_disabled(ubi))
 		wake_up_process(ubi->bgt_thread);
 	spin_unlock(&ubi->wl_lock);
+	up_read(&ubi->work_sem);
 }
 
 static int erase_worker(struct ubi_device *ubi, struct ubi_work *wl_wrk,
 			int cancel);
+
+/**
+ * ubi_is_erase_work - checks whether a work is erase work
+ * @wrk: The work object to be checked
+ */
+int ubi_is_erase_work(struct ubi_work *wrk)
+{
+	return wrk->func == erase_worker;
+}
 
 /**
  * schedule_erase - schedule an erase work.

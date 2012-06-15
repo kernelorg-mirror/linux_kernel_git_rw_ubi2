@@ -433,17 +433,19 @@ struct ubi_fm_sb {
  * @magic: fastmap header magic number (%UBI_FM_HDR_MAGIC)
  * @free_peb_count: number of free PEBs known by this fastmap
  * @free_peb_count: number of used PEBs known by this fastmap
- * @vol_count: number of UBI volumes known by this fastmap
  * @bad_peb_count: number of bad PEBs known by this fastmap
+ * @erase_peb_count: number of bad PEBs which have to be erased
+ * @vol_count: number of UBI volumes known by this fastmap
  */
 struct ubi_fm_hdr {
 	__be32 magic;
 	__be32 free_peb_count;
 	__be32 used_peb_count;
 	__be32 scrub_peb_count;
-	__be32 vol_count;
 	__be32 bad_peb_count;
-	__u8 padding[8];
+	__be32 erase_peb_count;
+	__be32 vol_count;
+	__u8 padding[4];
 } __packed;
 
 /* struct ubi_fm_hdr is followed by struct ubi_fm_scan_pool */
