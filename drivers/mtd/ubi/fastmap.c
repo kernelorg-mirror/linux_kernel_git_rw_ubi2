@@ -1272,7 +1272,6 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 			ec_hdr = kzalloc(ubi->ec_hdr_alsize, GFP_KERNEL);
 			if (!ec_hdr) {
 				ret = -ENOMEM;
-
 				goto err;
 			}
 
@@ -1282,7 +1281,6 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 			if (ret && ret != UBI_IO_BITFLIPS) {
 				ubi_err("unable to read EC header");
 				kfree(ec_hdr);
-
 				goto err;
 			}
 
@@ -1291,7 +1289,6 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 			if (ret < 0) {
 				ubi_err("unable to erase old SB");
 				kfree(ec_hdr);
-
 				goto err;
 			}
 
@@ -1301,7 +1298,6 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				ubi_err("erase counter overflow!");
 				kfree(ec_hdr);
 				ret = -EINVAL;
-
 				goto err;
 			}
 
@@ -1311,7 +1307,6 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 			kfree(ec_hdr);
 			if (ret) {
 				ubi_err("unable to write new EC header");
-
 				goto err;
 			}
 
@@ -1334,7 +1329,6 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 		if (!tmp_e) {
 			ubi_err("could not find an early PEB");
 			ret = -ENOSPC;
-
 			goto err;
 		}
 
@@ -1345,7 +1339,6 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 	if (new_fm->used_blocks > UBI_FM_MAX_BLOCKS) {
 		ubi_err("fastmap too large");
 		ret = -ENOSPC;
-
 		goto err;
 	}
 
@@ -1365,7 +1358,6 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				kfree(new_fm->e[i]);
 			}
 			ret = -ENOSPC;
-
 			goto err;
 		}
 
