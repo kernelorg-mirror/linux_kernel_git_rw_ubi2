@@ -1266,6 +1266,11 @@ out:
 	return ret;
 }
 
+/**
+ * erase_block - Manually erase a PEB
+ * @ubi: UBI device object
+ * @pnum: PEB to be erased
+ */
 static int erase_block(struct ubi_device *ubi, int pnum)
 {
 	int ret;
@@ -1306,6 +1311,11 @@ out:
 	return ret;
 }
 
+/**
+ * invalidate_fastmap - destroys a fastmap
+ * @ubi: UBI device object
+ * @fm: the fastmap to be destroyed
+ */
 static int invalidate_fastmap(struct ubi_device *ubi,
 			      struct ubi_fastmap_layout *fm)
 {
