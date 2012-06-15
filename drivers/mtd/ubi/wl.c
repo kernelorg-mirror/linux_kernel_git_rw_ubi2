@@ -839,8 +839,10 @@ int ubi_wl_put_fm_peb(struct ubi_device *ubi, struct ubi_wl_entry *fm_e,
 		e = fm_e;
 		ubi_assert(e->ec);
 		ubi->lookuptbl[pnum] = e;
-	} else
+	} else {
+		e->ec = fm_e->ec;
 		kfree(fm_e);
+	}
 
 	spin_unlock(&ubi->wl_lock);
 
