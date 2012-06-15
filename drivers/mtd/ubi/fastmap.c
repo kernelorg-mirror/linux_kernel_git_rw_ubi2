@@ -348,7 +348,7 @@ static void unmap_peb(struct ubi_attach_info *ai, int pnum)
  */
 static int scan_pool(struct ubi_device *ubi, struct ubi_attach_info *ai,
 		     int *pebs, int pool_size, unsigned long long *max_sqnum,
-		     struct list_head *eba_orphans)
+		     struct list_head *eba_orphans, struct list_head *free)
 {
 	struct ubi_vid_hdr *vh;
 	struct ubi_ec_hdr *ech;
@@ -402,9 +402,9 @@ static int scan_pool(struct ubi_device *ubi, struct ubi_attach_info *ai,
 			unmap_peb(ai, pnum);
 			dbg_bld("Adding PEB to free: %i", pnum);
 			if (err == UBI_IO_FF_BITFLIPS)
-				add_aeb(ai, &ai->free, pnum, ec, 1);
+				add_aeb(ai, free, pnum, ec, 1);
 			else
-				add_aeb(ai, &ai->free, pnum, ec, 0);
+				add_aeb(ai, free, pnum, ec, 0);
 			continue;
 		} else if (err == 0 || err == UBI_IO_BITFLIPS) {
 			dbg_bld("Found non empty PEB:%i in pool", pnum);
@@ -471,7 +471,7 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 			      struct ubi_attach_info *ai,
 			      void *fm_raw, size_t fm_size)
 {
-	struct list_head used, eba_orphans;
+	struct list_head used, eba_orphans, free;
 	struct ubi_ainf_volume *av;
 	struct ubi_ainf_peb *aeb, *tmp_aeb, *_tmp_aeb;
 	struct ubi_ec_hdr *ech;
@@ -486,6 +486,7 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 	unsigned long long max_sqnum = 0;
 
 	INIT_LIST_HEAD(&used);
+	INIT_LIST_HEAD(&free);
 	INIT_LIST_HEAD(&eba_orphans);
 	INIT_LIST_HEAD(&ai->corr);
 	INIT_LIST_HEAD(&ai->free);
@@ -564,6 +565,17 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 			goto fail_bad;
 
 		add_aeb(ai, &used, be32_to_cpu(fmec->pnum),
+			be32_to_cpu(fmec->ec), 1);
+	}
+
+	/* read EC values from erase list */
+	for (i = 0; i < be32_to_cpu(fmhdr->erase_peb_count); i++) {
+		fmec = (struct ubi_fm_ec *)(fm_raw + fm_pos);
+		fm_pos += sizeof(*fmec);
+		if (fm_pos >= fm_size)
+			goto fail_bad;
+
+		add_aeb(ai, &ai->erase, be32_to_cpu(fmec->pnum),
 			be32_to_cpu(fmec->ec), 1);
 	}
 
@@ -683,12 +695,12 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 	}
 
 	ret = scan_pool(ubi, ai, fmpl1->pebs, be32_to_cpu(fmpl1->size),
-			&max_sqnum, &eba_orphans);
+			&max_sqnum, &eba_orphans, &free);
 	if (ret)
 		goto fail;
 
 	ret = scan_pool(ubi, ai, fmpl2->pebs, be32_to_cpu(fmpl2->size),
-			&max_sqnum, &eba_orphans);
+			&max_sqnum, &eba_orphans, &free);
 	if (ret)
 		goto fail;
 
@@ -697,11 +709,30 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 
 	list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &used, u.list) {
 		list_del(&tmp_aeb->u.list);
-		dbg_bld("moving PEB from used to erase: %i", tmp_aeb->pnum);
+		ubi_msg("moving PEB from used to erase: %i", tmp_aeb->pnum);
 		add_aeb(ai, &ai->erase, tmp_aeb->pnum, tmp_aeb->ec, 0);
 		kmem_cache_free(ai->aeb_slab_cache, tmp_aeb);
 	}
 
+	if (list_empty(&free))
+		goto out;
+
+	list_for_each_entry(aeb, &ai->free, u.list) {
+		list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &free, u.list) {
+			if (aeb->pnum == tmp_aeb->pnum) {
+				aeb->scrub = tmp_aeb->scrub;
+				list_del(&tmp_aeb->u.list);
+				kfree(tmp_aeb);
+				continue;
+			}
+		}
+	}
+
+	list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &free, u.list) {
+		list_del(&tmp_aeb->u.list);
+		list_add_tail(&tmp_aeb->u.list, &ai->free);
+	}
+out:
 	return 0;
 
 fail_bad:
@@ -1022,8 +1053,9 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 	struct ubi_wl_entry *wl_e;
 	struct ubi_volume *vol;
 	struct ubi_vid_hdr *avhdr, *dvhdr;
+	struct ubi_work *ubi_wrk;
 	int ret, i, j, free_peb_count, used_peb_count, vol_count;
-	int scrub_peb_count;
+	int scrub_peb_count, erase_peb_count;
 
 	fm_raw = vzalloc(new_fm->size);
 	if (!fm_raw) {
@@ -1064,6 +1096,7 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 	free_peb_count = 0;
 	used_peb_count = 0;
 	scrub_peb_count = 0;
+	erase_peb_count = 0;
 	vol_count = 0;
 
 	fmpl1 = (struct ubi_fm_scan_pool *)(fm_raw + fm_pos);
@@ -1120,6 +1153,24 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 		ubi_assert(fm_pos <= new_fm->size);
 	}
 	fmh->scrub_peb_count = cpu_to_be32(scrub_peb_count);
+
+
+	list_for_each_entry(ubi_wrk, &ubi->works, list) {
+		if (ubi_is_erase_work(ubi_wrk)) {
+			wl_e = ubi_wrk->e;
+			ubi_assert(wl_e);
+
+			fec = (struct ubi_fm_ec *)(fm_raw + fm_pos);
+
+			fec->pnum = cpu_to_be32(wl_e->pnum);
+			fec->ec = cpu_to_be32(wl_e->ec);
+
+			erase_peb_count++;
+			fm_pos += sizeof(*fec);
+			ubi_assert(fm_pos <= new_fm->size);
+		}
+	}
+	fmh->erase_peb_count = cpu_to_be32(erase_peb_count);
 
 	for (i = 0; i < UBI_MAX_VOLUMES + UBI_INT_VOL_COUNT; i++) {
 		vol = ubi->volumes[i];
@@ -1366,15 +1417,10 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 	}
 
 	kfree(old_fm);
-	/* Ensure that the PEBs of the old fastmap got erased and added to the
-	 * free list before we write the fastmap. Otherwise fastmp does not
-	 * see these PEBs and we leak them.
-	 * We need the flush also to ensure that no to be scrubbed PEBs are in
-	 * flight.
-	 */
-	ubi_wl_flush(ubi);
 
+	down_write(&ubi->work_sem);
 	ret = ubi_write_fastmap(ubi, new_fm);
+	up_write(&ubi->work_sem);
 out_unlock:
 	mutex_unlock(&ubi->fm_mutex);
 

@@ -656,6 +656,30 @@ struct ubi_attach_info {
 	struct kmem_cache *aeb_slab_cache;
 };
 
+/**
+ * struct ubi_work - UBI work description data structure.
+ * @list: a link in the list of pending works
+ * @func: worker function
+ * @e: physical eraseblock to erase
+ * @vol_id: the volume ID on which this erasure is being performed
+ * @lnum: the logical eraseblock number
+ * @torture: if the physical eraseblock has to be tortured
+ *
+ * The @func pointer points to the worker function. If the @cancel argument is
+ * not zero, the worker has to free the resources and exit immediately. The
+ * worker has to return zero in case of success and a negative error code in
+ * case of failure.
+ */
+struct ubi_work {
+	struct list_head list;
+	int (*func)(struct ubi_device *ubi, struct ubi_work *wrk, int cancel);
+	/* The below fields are only relevant to erasure works */
+	struct ubi_wl_entry *e;
+	int vol_id;
+	int lnum;
+	int torture;
+};
+
 #include "debug.h"
 
 extern struct kmem_cache *ubi_wl_entry_slab;
@@ -738,6 +762,7 @@ void ubi_wl_close(struct ubi_device *ubi);
 int ubi_thread(void *u);
 struct ubi_wl_entry *ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum);
 int ubi_wl_put_fm_peb(struct ubi_device *ubi, struct ubi_wl_entry *used_e, int torture);
+int ubi_is_erase_work(struct ubi_work *wrk);
 
 /* io.c */
 int ubi_io_read(const struct ubi_device *ubi, void *buf, int pnum, int offset,
