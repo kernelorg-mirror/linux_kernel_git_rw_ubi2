@@ -721,6 +721,7 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 		list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &free, u.list) {
 			if (aeb->pnum == tmp_aeb->pnum) {
 				aeb->scrub = tmp_aeb->scrub;
+				aeb->ec = tmp_aeb->ec;
 				list_del(&tmp_aeb->u.list);
 				kfree(tmp_aeb);
 				continue;
@@ -1345,6 +1346,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 
 			ec = be64_to_cpu(ec_hdr->ec);
 			ec += ret;
+			old_fm->e[0]->ec = ec;
 			if (ec > UBI_MAX_ERASECOUNTER) {
 				ubi_err("erase counter overflow!");
 				kfree(ec_hdr);
