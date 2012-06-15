@@ -1418,9 +1418,11 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 
 	kfree(old_fm);
 
+	down_write(&ubi->fm_sem);
 	down_write(&ubi->work_sem);
 	ret = ubi_write_fastmap(ubi, new_fm);
 	up_write(&ubi->work_sem);
+	up_write(&ubi->fm_sem);
 out_unlock:
 	mutex_unlock(&ubi->fm_mutex);
 
