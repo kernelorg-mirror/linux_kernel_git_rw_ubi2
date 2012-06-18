@@ -1000,11 +1000,12 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	kfree(fmsb);
 
 	fmsb = (struct ubi_fm_sb *)fm_raw;
-	tmp_crc = fmsb->data_crc;
+	tmp_crc = be32_to_cpu(fmsb->data_crc);
 	fmsb->data_crc = 0;
-	crc = crc32_be(UBI_CRC32_INIT, fm_raw, fm_size);
+	crc = crc32(UBI_CRC32_INIT, fm_raw, fm_size);
 	if (crc != tmp_crc) {
 		ubi_err("fastmap data CRC is invalid");
+		ubi_err("CRC should be: 0x%x, calc: 0x%x", tmp_crc, crc);
 		ret = UBI_BAD_FASTMAP;
 		kfree(fm);
 		goto free_hdr;
@@ -1248,7 +1249,7 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 	}
 
 	fmsb->data_crc = 0;
-	fmsb->data_crc = crc32_be(UBI_CRC32_INIT, fm_raw, new_fm->size);
+	fmsb->data_crc = cpu_to_be32(crc32(UBI_CRC32_INIT, fm_raw, new_fm->size));
 
 	for (i = 1; i < new_fm->used_blocks; i++) {
 		dvhdr->sqnum = cpu_to_be64(ubi_next_sqnum(ubi));
