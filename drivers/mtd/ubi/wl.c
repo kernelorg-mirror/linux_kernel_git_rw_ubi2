@@ -140,6 +140,17 @@ static int self_check_in_wl_tree(const struct ubi_device *ubi,
 				 struct ubi_wl_entry *e, struct rb_root *root);
 static int self_check_in_pq(const struct ubi_device *ubi,
 			    struct ubi_wl_entry *e);
+
+/**
+ * update_fastmap_work_fn - calls ubi_update_fastmap from a work queue
+ * @wrk: the work description object
+ */
+static void update_fastmap_work_fn(struct work_struct *wrk)
+{
+	struct ubi_device *ubi = container_of(wrk, struct ubi_device, fm_work);
+	ubi_update_fastmap(ubi);
+}
+
 /**
  *  ubi_ubi_is_fm_block - returns 1 if a PEB is currently used in a fastmap.
  *  @ubi: UBI device description object
@@ -255,7 +266,6 @@ static int produce_free_peb(struct ubi_device *ubi)
 {
 	int err;
 
-	spin_lock(&ubi->wl_lock);
 	while (!ubi->free.rb_node) {
 		spin_unlock(&ubi->wl_lock);
 
@@ -266,7 +276,6 @@ static int produce_free_peb(struct ubi_device *ubi)
 
 		spin_lock(&ubi->wl_lock);
 	}
-	spin_unlock(&ubi->wl_lock);
 
 	return 0;
 }
@@ -460,15 +469,12 @@ static int __ubi_wl_get_peb(struct ubi_device *ubi)
 	struct ubi_wl_entry *e;
 
 retry:
-	spin_lock(&ubi->wl_lock);
 	if (!ubi->free.rb_node) {
 		if (ubi->works_count == 0) {
 			ubi_assert(list_empty(&ubi->works));
 			ubi_err("no free eraseblocks");
-			spin_unlock(&ubi->wl_lock);
 			return -ENOSPC;
 		}
-		spin_unlock(&ubi->wl_lock);
 
 		err = produce_free_peb(ubi);
 		if (err < 0)
@@ -486,7 +492,6 @@ retry:
 	 */
 	rb_erase(&e->u.rb, &ubi->free);
 	dbg_wl("PEB %d EC %d", e->pnum, e->ec);
-	spin_unlock(&ubi->wl_lock);
 
 	err = ubi_self_check_all_ff(ubi, e->pnum, ubi->vid_hdr_aloffset,
 				    ubi->peb_size - ubi->vid_hdr_aloffset);
@@ -497,43 +502,76 @@ retry:
 
 	return e->pnum;
 }
-
-static int refill_wl_pool(struct ubi_device *ubi)
+/**
+ * return_unused_pool_pebs - returns unused PEB to the free tree.
+ * @ubi: UBI device description object
+ * @pool: fastmap pool description object
+ */
+static void return_unused_pool_pebs(struct ubi_device *ubi,
+				    struct ubi_fm_pool *pool)
 {
-	int ret, i;
-	struct ubi_fm_pool *pool = &ubi->fm_wl_pool;
+	int i;
 	struct ubi_wl_entry *e;
 
-	spin_lock(&ubi->wl_lock);
-	if (pool->used != pool->size && pool->size) {
-		spin_unlock(&ubi->wl_lock);
-		return 0;
+	for (i = pool->used; i < pool->size; i++) {
+		e = ubi->lookuptbl[pool->pebs[i]];
+		wl_tree_add(e, &ubi->free);
 	}
+}
 
-	for (i = 0; i < pool->max_size; i++) {
-		if (!ubi->free.rb_node) {
-			spin_unlock(&ubi->wl_lock);
+/**
+ * refill_wl_pool - refills all the fastmap pool used by the
+ * WL sub-system.
+ * @ubi: UBI device description object
+ */
+static void refill_wl_pool(struct ubi_device *ubi)
+{
+	struct ubi_wl_entry *e;
+	struct ubi_fm_pool *pool = &ubi->fm_wl_pool;
+
+	return_unused_pool_pebs(ubi, pool);
+
+	for (pool->size = 0; pool->size < pool->max_size; pool->size++) {
+		if (!ubi->free.rb_node)
 			break;
-		}
 
 		e = find_wl_entry(&ubi->free, WL_FREE_MAX_DIFF);
 		self_check_in_wl_tree(ubi, e, &ubi->free);
 		rb_erase(&e->u.rb, &ubi->free);
 
-		pool->pebs[i] = e->pnum;
-	}
-	pool->size = i;
-	spin_unlock(&ubi->wl_lock);
-
-	ret = ubi_update_fastmap(ubi);
-	if (ret) {
-		ubi_ro_mode(ubi);
-
-		return ret > 0 ? -EINVAL : ret;
+		pool->pebs[pool->size] = e->pnum;
 	}
 	pool->used = 0;
+}
 
-	return pool->size ? 0 : -ENOSPC;
+/**
+ * refill_wl_user_pool - refills all the fastmap pool used by ubi_wl_get_peb.
+ * @ubi: UBI device description object
+ */
+static void refill_wl_user_pool(struct ubi_device *ubi)
+{
+	struct ubi_fm_pool *pool = &ubi->fm_pool;
+
+	return_unused_pool_pebs(ubi, pool);
+
+	for (pool->size = 0; pool->size < pool->max_size; pool->size++) {
+		pool->pebs[pool->size] = __ubi_wl_get_peb(ubi);
+		if (pool->pebs[pool->size] < 0)
+			break;
+	}
+	pool->used = 0;
+}
+
+/**
+ * ubi_refill_pools - refills all fastmap PEB pools.
+ * @ubi: UBI device description object
+ */
+void ubi_refill_pools(struct ubi_device *ubi)
+{
+	spin_lock(&ubi->wl_lock);
+	refill_wl_pool(ubi);
+	refill_wl_user_pool(ubi);
+	spin_unlock(&ubi->wl_lock);
 }
 
 /* ubi_wl_get_peb - works exaclty like __ubi_wl_get_peb but keeps track of
@@ -541,32 +579,15 @@ static int refill_wl_pool(struct ubi_device *ubi)
  */
 int ubi_wl_get_peb(struct ubi_device *ubi)
 {
-	struct ubi_fm_pool *pool = &ubi->fm_pool;
 	int ret;
+	struct ubi_fm_pool *pool = &ubi->fm_pool;
+	struct ubi_fm_pool *wl_pool = &ubi->fm_wl_pool;
 
 	mutex_lock(&ubi->fm_pool_mutex);
 
-	refill_wl_pool(ubi);
-
-	/* pool contains no free blocks, create a new one
-	 * and write a fastmap */
-	if (pool->used == pool->size || !pool->size) {
-		for (pool->size = 0; pool->size < pool->max_size;
-				pool->size++) {
-			pool->pebs[pool->size] = __ubi_wl_get_peb(ubi);
-			if (pool->pebs[pool->size] < 0)
-				break;
-		}
-
-		pool->used = 0;
-		ret = ubi_update_fastmap(ubi);
-		if (ret) {
-			ubi_ro_mode(ubi);
-			mutex_unlock(&ubi->fm_pool_mutex);
-
-			return ret > 0 ? -EINVAL : ret;
-		}
-	}
+	if (!pool->size || !wl_pool->size || pool->used == pool->size ||
+	    wl_pool->used == wl_pool->size)
+		ubi_update_fastmap(ubi);
 
 	/* we got not a single free PEB */
 	if (!pool->size)
@@ -593,6 +614,10 @@ static struct ubi_wl_entry *get_peb_for_wl(struct ubi_device *ubi)
 	int pnum;
 
 	if (pool->used == pool->size || !pool->size) {
+		/* We cannot update the fastmap here because this
+		 * function is called in atomic context.
+		 * Let's fail an refill/update it as soon as possible. */
+		schedule_work(&ubi->fm_work);
 		return NULL;
 	} else {
 		pnum = pool->pebs[pool->used++];
@@ -730,6 +755,25 @@ repeat:
 }
 
 /**
+ * __schedule_ubi_work - schedule a work.
+ * @ubi: UBI device description object
+ * @wrk: the work to schedule
+ *
+ * This function adds a work defined by @wrk to the tail of the pending works
+ * list. Can only be used of ubi->work_sem is already held in read mode!
+ */
+static void __schedule_ubi_work(struct ubi_device *ubi, struct ubi_work *wrk)
+{
+	spin_lock(&ubi->wl_lock);
+	list_add_tail(&wrk->list, &ubi->works);
+	ubi_assert(ubi->works_count >= 0);
+	ubi->works_count += 1;
+	if (ubi->thread_enabled && !ubi_dbg_is_bgt_disabled(ubi))
+		wake_up_process(ubi->bgt_thread);
+	spin_unlock(&ubi->wl_lock);
+}
+
+/**
  * schedule_ubi_work - schedule a work.
  * @ubi: UBI device description object
  * @wrk: the work to schedule
@@ -740,13 +784,7 @@ repeat:
 static void schedule_ubi_work(struct ubi_device *ubi, struct ubi_work *wrk)
 {
 	down_read(&ubi->work_sem);
-	spin_lock(&ubi->wl_lock);
-	list_add_tail(&wrk->list, &ubi->works);
-	ubi_assert(ubi->works_count >= 0);
-	ubi->works_count += 1;
-	if (ubi->thread_enabled && !ubi_dbg_is_bgt_disabled(ubi))
-		wake_up_process(ubi->bgt_thread);
-	spin_unlock(&ubi->wl_lock);
+	__schedule_ubi_work(ubi, wrk);
 	up_read(&ubi->work_sem);
 }
 
@@ -1146,7 +1184,7 @@ out_cancel:
  * if yes. This function returns zero in case of success and a negative error
  * code in case of failure.
  */
-static int ensure_wear_leveling(struct ubi_device *ubi)
+static int ensure_wear_leveling(struct ubi_device *ubi, int nested)
 {
 	int err = 0;
 	struct ubi_wl_entry *e1;
@@ -1192,7 +1230,10 @@ static int ensure_wear_leveling(struct ubi_device *ubi)
 	}
 
 	wrk->func = &wear_leveling_worker;
-	schedule_ubi_work(ubi, wrk);
+	if (nested)
+		__schedule_ubi_work(ubi, wrk);
+	else
+		schedule_ubi_work(ubi, wrk);
 	return err;
 
 out_cancel:
@@ -1245,6 +1286,9 @@ static int erase_worker(struct ubi_device *ubi, struct ubi_work *wl_wrk,
 		 * protected physical eraseblocks.
 		 */
 		serve_prot_queue(ubi);
+
+		/* And take care about wear-leveling */
+		ensure_wear_leveling(ubi, 1);
 		return err;
 	}
 
@@ -1468,7 +1512,7 @@ retry:
 	 * Technically scrubbing is the same as wear-leveling, so it is done
 	 * by the WL worker.
 	 */
-	return ensure_wear_leveling(ubi);
+	return ensure_wear_leveling(ubi, 0);
 }
 
 /**
@@ -1641,6 +1685,7 @@ int ubi_wl_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	init_rwsem(&ubi->work_sem);
 	ubi->max_ec = ai->max_ec;
 	INIT_LIST_HEAD(&ubi->works);
+	INIT_WORK(&ubi->fm_work, update_fastmap_work_fn);
 
 	sprintf(ubi->bgt_name, UBI_BGT_NAME_PATTERN, ubi->ubi_num);
 
@@ -1737,7 +1782,7 @@ int ubi_wl_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	ubi->rsvd_pebs += WL_RESERVED_PEBS;
 
 	/* Schedule wear-leveling if needed */
-	err = ensure_wear_leveling(ubi);
+	err = ensure_wear_leveling(ubi, 0);
 	if (err)
 		goto out_free;
 

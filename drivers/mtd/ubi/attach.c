@@ -90,6 +90,8 @@
 #include "ubi.h"
 
 static int self_check_ai(struct ubi_device *ubi, struct ubi_attach_info *ai);
+static void destroy_ai(struct ubi_device *ubi, struct ubi_attach_info *ai);
+static struct ubi_attach_info *new_ai(void);
 
 /* Temporary variables used during scanning */
 static struct ubi_ec_hdr *ech;
@@ -1123,12 +1125,6 @@ static int scan_all(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	struct ubi_ainf_volume *av;
 	struct ubi_ainf_peb *aeb;
 
-	INIT_LIST_HEAD(&ai->corr);
-	INIT_LIST_HEAD(&ai->free);
-	INIT_LIST_HEAD(&ai->erase);
-	INIT_LIST_HEAD(&ai->alien);
-	ai->volumes = RB_ROOT;
-
 	err = -ENOMEM;
 	ai->aeb_slab_cache = kmem_cache_create("ubi_aeb_slab_cache",
 					       sizeof(struct ubi_ainf_peb),
@@ -1200,33 +1196,43 @@ out_vidh:
 out_ech:
 	kfree(ech);
 out_ai:
-	ubi_destroy_ai(ubi, ai);
+	destroy_ai(ubi, ai);
 	return err;
 }
 
 /**
  * ubi_attach - attach an MTD device.
  * @ubi: UBI device descriptor
+ * @force_scan: if set to non-zero attach by scanning
  *
  * This function returns zero in case of success and a negative error code in
  * case of failure.
  */
-int ubi_attach(struct ubi_device *ubi)
+int ubi_attach(struct ubi_device *ubi, int force_scan)
 {
 	int err;
 	struct ubi_attach_info *ai;
 
-	ai = kzalloc(sizeof(struct ubi_attach_info), GFP_KERNEL);
+	ai = new_ai();
 	if (!ai)
 		return -ENOMEM;
 
-	err = ubi_scan_fastmap(ubi, ai);
-	if (err > 0) {
+	if (force_scan)
 		err = scan_all(ubi, ai);
-		if (err)
-			return err;
-	} else if (err < 0)
-		return err;
+	else {
+		err = ubi_scan_fastmap(ubi, ai);
+		if (err > 0) {
+			destroy_ai(ubi, ai);
+			ai = new_ai();
+			if (!ai)
+				return -ENOMEM;
+
+			err = scan_all(ubi, ai);
+		}
+	}
+
+	if (err)
+		goto out_ai;
 
 	/* TODO: currently the fastmap code assumes that the fastmap data
 	 * structures are created only by the kernel when the kernel attaches
@@ -1264,7 +1270,7 @@ int ubi_attach(struct ubi_device *ubi)
 
 	if (ubi->fm && ubi->dbg->chk_gen) {
 		struct ubi_attach_info *scan_ai;
-		scan_ai = kzalloc(sizeof(struct ubi_attach_info), GFP_KERNEL);
+		scan_ai = new_ai();
 		if (!scan_ai)
 			goto out_ai;
 
@@ -1275,10 +1281,10 @@ int ubi_attach(struct ubi_device *ubi)
 		}
 
 		self_check_eba(ubi, ai, scan_ai);
-		ubi_destroy_ai(ubi, scan_ai);
+		destroy_ai(ubi, scan_ai);
 	}
 
-	ubi_destroy_ai(ubi, ai);
+	destroy_ai(ubi, ai);
 
 	/* TODO: UBI auto formats the flash if it is empty (see ubi->is_empty).
 	 * It is currently done so that every sub-system writes initializes its
@@ -1295,7 +1301,7 @@ out_vtbl:
 	ubi_free_internal_volumes(ubi);
 	vfree(ubi->vtbl);
 out_ai:
-	ubi_destroy_ai(ubi, ai);
+	destroy_ai(ubi, ai);
 	return err;
 }
 
@@ -1333,11 +1339,11 @@ static void destroy_av(struct ubi_attach_info *ai, struct ubi_ainf_volume *av)
 }
 
 /**
- * ubi_destroy_ai - destroy attaching information.
+ * destroy_ai - destroy attaching information.
  * @ubi: UBI device object
  * @ai: attaching information
  */
-void ubi_destroy_ai(struct ubi_device *ubi, struct ubi_attach_info *ai)
+static void destroy_ai(struct ubi_device *ubi, struct ubi_attach_info *ai)
 {
 	struct ubi_ainf_peb *aeb, *aeb_tmp;
 	struct ubi_ainf_volume *av;
@@ -1386,6 +1392,24 @@ void ubi_destroy_ai(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		kmem_cache_destroy(ai->aeb_slab_cache);
 
 	kfree(ai);
+}
+
+static struct ubi_attach_info *new_ai(void)
+{
+	static struct ubi_attach_info *ai;
+
+	ai = kzalloc(sizeof(struct ubi_attach_info), GFP_KERNEL);
+	if (!ai)
+		goto out;
+
+	INIT_LIST_HEAD(&ai->corr);
+	INIT_LIST_HEAD(&ai->free);
+	INIT_LIST_HEAD(&ai->erase);
+	INIT_LIST_HEAD(&ai->alien);
+	ai->volumes = RB_ROOT;
+
+out:
+	return ai;
 }
 
 /**

@@ -928,7 +928,7 @@ int ubi_attach_mtd_dev(struct mtd_info *mtd, int ubi_num, int vid_hdr_offset)
 	if (err)
 		goto out_free;
 
-	err = ubi_attach(ubi);
+	err = ubi_attach(ubi, 0);
 	if (err) {
 		ubi_err("failed to attach mtd%d, error %d", mtd->index, err);
 		goto out_debugging;
@@ -1051,16 +1051,14 @@ int ubi_detach_mtd_dev(int ubi_num, int anyway)
 	ubi_notify_all(ubi, UBI_VOLUME_REMOVED, NULL);
 	dbg_msg("detaching mtd%d from ubi%d", ubi->mtd->index, ubi_num);
 
+	ubi_update_fastmap(ubi);
+
 	/*
 	 * Before freeing anything, we have to stop the background thread to
 	 * prevent it from doing anything on this device while we are freeing.
 	 */
 	if (ubi->bgt_thread)
 		kthread_stop(ubi->bgt_thread);
-
-	/* If no fastmap is present on the FLASH write one. */
-	if (!ubi->fm)
-		ubi_update_fastmap(ubi);
 
 	/*
 	 * Get a reference to the device in order to prevent 'dev_release()'

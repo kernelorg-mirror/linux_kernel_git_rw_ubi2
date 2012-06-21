@@ -1276,10 +1276,12 @@ int self_check_eba(struct ubi_device *ubi, struct ubi_attach_info *ai_fastmap,
 
 		for (j = 0; j < vol->reserved_pebs; j++) {
 			if (scan_eba[i][j] != fm_eba[i][j]) {
-				if (scan_eba[i][j] == UBI_LEB_UNMAPPED)
+				if (scan_eba[i][j] == UBI_LEB_UNMAPPED ||
+					fm_eba[i][j] == UBI_LEB_UNMAPPED)
 					continue;
 
-				ubi_err("LEB:%i is mapped to PEB:%i instead of PEB:%i!", i, fm_eba[i][j], scan_eba[i][j]);
+				ubi_err("LEB:%i:%i is PEB:%i instead of %i!",
+					vol->vol_id, i, fm_eba[i][j], scan_eba[i][j]);
 				BUG();
 			}
 		}

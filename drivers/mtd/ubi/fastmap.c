@@ -461,6 +461,26 @@ out:
 	return ret;
 }
 
+static int self_check_fastmap(struct ubi_attach_info *ai)
+{
+	struct ubi_ainf_peb *aeb;
+	struct ubi_ainf_volume *av;
+	struct rb_node *rb1, *rb2;
+	int n = 0;
+
+	list_for_each_entry(aeb, &ai->erase, u.list)
+		n++;
+
+	list_for_each_entry(aeb, &ai->free, u.list)
+		n++;
+
+	 ubi_rb_for_each_entry(rb1, av, &ai->volumes, rb)
+		ubi_rb_for_each_entry(rb2, aeb, &av->root, u.rb)
+			n++;
+
+	return n;
+}
+
 /**
  * ubi_attach_fastmap - creates ubi_attach_info from a fastmap.
  * @ubi: UBI device object
@@ -707,54 +727,11 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 	if (max_sqnum > ai->max_sqnum)
 		ai->max_sqnum = max_sqnum;
 
-	list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &used, u.list) {
-		list_del(&tmp_aeb->u.list);
-		ubi_msg("moving PEB from used to erase: %i", tmp_aeb->pnum);
-		add_aeb(ai, &ai->erase, tmp_aeb->pnum, tmp_aeb->ec, 0);
-		kmem_cache_free(ai->aeb_slab_cache, tmp_aeb);
-	}
-
-	/*
-	 * Sort out dups. We are allowed to have duplicates here because
-	 * the fastmap can be written without refilling all pools.
-	 * E.g. If PEB X is in a pool fastmap may detect it as empty and
-	 * puts it into the free list. But ff PEB X is in the pool, get's
-	 * used and returned (e.g. by schedule_erase()) it remains in
-	 * the erase or free list too.
-	 * We could also sort out these dups while creating the fastmap.
-	 */
-	if (list_empty(&free))
-		goto out;
-
-	list_for_each_entry(aeb, &ai->free, u.list) {
-		list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &free, u.list) {
-			if (aeb->pnum == tmp_aeb->pnum) {
-				aeb->scrub = tmp_aeb->scrub;
-				aeb->ec = tmp_aeb->ec;
-				list_del(&tmp_aeb->u.list);
-				kfree(tmp_aeb);
-				continue;
-			}
-		}
-	}
-
-	list_for_each_entry(aeb, &ai->erase, u.list) {
-		list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &free, u.list) {
-			if (aeb->pnum == tmp_aeb->pnum) {
-				aeb->scrub = tmp_aeb->scrub;
-				aeb->ec = tmp_aeb->ec;
-				list_del(&tmp_aeb->u.list);
-				kfree(tmp_aeb);
-				continue;
-			}
-		}
-	}
-
 	list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &free, u.list) {
 		list_del(&tmp_aeb->u.list);
 		list_add_tail(&tmp_aeb->u.list, &ai->free);
 	}
-out:
+
 	return 0;
 
 fail_bad:
@@ -1017,6 +994,19 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	if (ret) {
 		if (ret > 0)
 			ret = UBI_BAD_FASTMAP;
+		kfree(fm);
+		goto free_hdr;
+	}
+
+	/*
+	 * If fastmap is leaking PEBs (must not happen), raise a
+	 * fat warning and fall back to scanning mode.
+	 * We do this here because in ubi_wl_init() it's too late
+	 * and we cannot fall back to scanning.
+	 */
+	if (WARN_ON(self_check_fastmap(ai) != ubi->peb_count -
+		    ubi->bad_peb_count - used_blocks)) {
+		ret = UBI_BAD_FASTMAP;
 		kfree(fm);
 		goto free_hdr;
 	}
@@ -1342,8 +1332,21 @@ static int invalidate_fastmap(struct ubi_device *ubi,
 			      struct ubi_fastmap_layout *fm)
 {
 	int ret, i;
+	struct ubi_vid_hdr *vh;
 
 	ret = erase_block(ubi, fm->e[0]->pnum);
+	if (ret < 0)
+		return ret;
+
+	vh = new_fm_vhdr(ubi, UBI_FM_SB_VOLUME_ID);
+	if (!vh)
+		return -ENOMEM;
+
+	/* deleting the current fastmap SB is not enough, an old SB may exist,
+	 * so create a (corrupted) SB such that fastmap will find it and fall
+	 * back to scanning mode in any case */
+	vh->sqnum = cpu_to_be64(ubi_next_sqnum(ubi));
+	ret = ubi_io_write_vid_hdr(ubi, fm->e[0]->pnum, vh);
 
 	for (i = 0; i < fm->used_blocks; i++)
 		ubi_wl_put_fm_peb(ubi, fm->e[i], fm->to_be_tortured[i]);
@@ -1362,12 +1365,20 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 	struct ubi_fastmap_layout *new_fm, *old_fm;
 	struct ubi_wl_entry *tmp_e;
 
-	if (ubi->ro_mode)
+	mutex_lock(&ubi->fm_mutex);
+
+	ubi_refill_pools(ubi);
+
+	if (ubi->ro_mode) {
+		mutex_unlock(&ubi->fm_mutex);
 		return 0;
+	}
 
 	new_fm = kzalloc(sizeof(*new_fm), GFP_KERNEL);
-	if (!new_fm)
+	if (!new_fm) {
+		mutex_unlock(&ubi->fm_mutex);
 		return -ENOMEM;
+	}
 
 	new_fm->size = sizeof(struct ubi_fm_hdr) + \
 			sizeof(struct ubi_fm_scan_pool) + \
@@ -1387,11 +1398,11 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				kfree(new_fm->e[i]);
 
 			kfree(new_fm);
+			mutex_unlock(&ubi->fm_mutex);
 			return -ENOMEM;
 		}
 	}
 
-	mutex_lock(&ubi->fm_mutex);
 	old_fm = ubi->fm;
 	ubi->fm = NULL;
 
