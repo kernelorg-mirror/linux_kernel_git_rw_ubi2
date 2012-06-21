@@ -140,6 +140,17 @@ static int self_check_in_wl_tree(const struct ubi_device *ubi,
 				 struct ubi_wl_entry *e, struct rb_root *root);
 static int self_check_in_pq(const struct ubi_device *ubi,
 			    struct ubi_wl_entry *e);
+
+/**
+ * update_fastmap_work_fn - calls ubi_update_fastmap from a work queue
+ * @wrk: the work description object
+ */
+static void update_fastmap_work_fn(struct work_struct *wrk)
+{
+	struct ubi_device *ubi = container_of(wrk, struct ubi_device, fm_work);
+	ubi_update_fastmap(ubi);
+}
+
 /**
  *  ubi_ubi_is_fm_block - returns 1 if a PEB is currently used in a fastmap.
  *  @ubi: UBI device description object
@@ -604,6 +615,10 @@ static struct ubi_wl_entry *get_peb_for_wl(struct ubi_device *ubi)
 	int pnum;
 
 	if (pool->used == pool->size || !pool->size) {
+		/* We cannot update the fastmap here because this
+		 * function is called in atomic context.
+		 * Let's fail an refill/update it as soon as possible. */
+		schedule_work(&ubi->fm_work);
 		return NULL;
 	} else {
 		pnum = pool->pebs[pool->used++];
@@ -1671,6 +1686,7 @@ int ubi_wl_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	init_rwsem(&ubi->work_sem);
 	ubi->max_ec = ai->max_ec;
 	INIT_LIST_HEAD(&ubi->works);
+	INIT_WORK(&ubi->fm_work, update_fastmap_work_fn);
 
 	sprintf(ubi->bgt_name, UBI_BGT_NAME_PATTERN, ubi->ubi_num);
 
