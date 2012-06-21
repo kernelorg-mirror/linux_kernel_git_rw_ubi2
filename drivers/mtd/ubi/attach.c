@@ -1223,25 +1223,29 @@ out_ai:
 /**
  * ubi_attach - attach an MTD device.
  * @ubi: UBI device descriptor
+ * @force_scan: if set to non-zero attach by scanning
  *
  * This function returns zero in case of success and a negative error code in
  * case of failure.
  */
-int ubi_attach(struct ubi_device *ubi)
+int ubi_attach(struct ubi_device *ubi, int force_scan)
 {
-	int err;
+	int err, i;
 	struct ubi_attach_info *ai;
 
 	ai = kzalloc(sizeof(struct ubi_attach_info), GFP_KERNEL);
 	if (!ai)
 		return -ENOMEM;
 
-	err = ubi_scan_fastmap(ubi, ai);
-	if (err > 0) {
+	if (force_scan)
 		err = scan_all(ubi, ai);
-		if (err)
-			return err;
-	} else if (err < 0)
+	else {
+		err = ubi_scan_fastmap(ubi, ai);
+		if (err > 0)
+			err = scan_all(ubi, ai);
+	}
+
+	if (err)
 		return err;
 
 	/* TODO: currently the fastmap code assumes that the fastmap data
