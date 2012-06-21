@@ -385,6 +385,7 @@ struct ubi_wl_entry;
  * @fm_pool_mutex: serializes ubi_wl_get_peb()
  * @fm_mutex: serializes ubi_update_fastmap()
  * @fm_sem: allows ubi_update_fastmap() to block EBA table changes
+ * @fm_work: fastmap work queue
  * @attached_by_scanning: this UBI device was attached by the old scanning
  *			  methold. All fastmap volumes have to be deleted.
  *
@@ -486,6 +487,7 @@ struct ubi_device {
 	struct rw_semaphore fm_sem;
 	struct mutex fm_mutex;
 	struct mutex fm_pool_mutex;
+	struct work_struct fm_work;
 	int attached_by_scanning;
 
 	/* Wear-leveling sub-system's stuff */
