@@ -255,7 +255,6 @@ static int produce_free_peb(struct ubi_device *ubi)
 {
 	int err;
 
-	spin_lock(&ubi->wl_lock);
 	while (!ubi->free.rb_node) {
 		spin_unlock(&ubi->wl_lock);
 
@@ -266,7 +265,6 @@ static int produce_free_peb(struct ubi_device *ubi)
 
 		spin_lock(&ubi->wl_lock);
 	}
-	spin_unlock(&ubi->wl_lock);
 
 	return 0;
 }
@@ -460,7 +458,6 @@ static int __ubi_wl_get_peb(struct ubi_device *ubi)
 	struct ubi_wl_entry *e;
 
 retry:
-	spin_lock(&ubi->wl_lock);
 	if (!ubi->free.rb_node) {
 		if (ubi->works_count == 0) {
 			ubi_assert(list_empty(&ubi->works));
@@ -468,7 +465,6 @@ retry:
 			spin_unlock(&ubi->wl_lock);
 			return -ENOSPC;
 		}
-		spin_unlock(&ubi->wl_lock);
 
 		err = produce_free_peb(ubi);
 		if (err < 0)
@@ -486,7 +482,6 @@ retry:
 	 */
 	rb_erase(&e->u.rb, &ubi->free);
 	dbg_wl("PEB %d EC %d", e->pnum, e->ec);
-	spin_unlock(&ubi->wl_lock);
 
 	err = ubi_self_check_all_ff(ubi, e->pnum, ubi->vid_hdr_aloffset,
 				    ubi->peb_size - ubi->vid_hdr_aloffset);
