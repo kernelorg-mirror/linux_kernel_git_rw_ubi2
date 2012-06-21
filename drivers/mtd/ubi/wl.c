@@ -473,7 +473,6 @@ retry:
 		if (ubi->works_count == 0) {
 			ubi_assert(list_empty(&ubi->works));
 			ubi_err("no free eraseblocks");
-			spin_unlock(&ubi->wl_lock);
 			return -ENOSPC;
 		}
 
