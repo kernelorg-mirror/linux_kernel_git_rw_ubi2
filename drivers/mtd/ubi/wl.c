@@ -741,6 +741,25 @@ repeat:
 }
 
 /**
+ * __schedule_ubi_work - schedule a work.
+ * @ubi: UBI device description object
+ * @wrk: the work to schedule
+ *
+ * This function adds a work defined by @wrk to the tail of the pending works
+ * list. Can only be used of ubi->work_sem is already held in read mode!
+ */
+static void __schedule_ubi_work(struct ubi_device *ubi, struct ubi_work *wrk)
+{
+	spin_lock(&ubi->wl_lock);
+	list_add_tail(&wrk->list, &ubi->works);
+	ubi_assert(ubi->works_count >= 0);
+	ubi->works_count += 1;
+	if (ubi->thread_enabled && !ubi_dbg_is_bgt_disabled(ubi))
+		wake_up_process(ubi->bgt_thread);
+	spin_unlock(&ubi->wl_lock);
+}
+
+/**
  * schedule_ubi_work - schedule a work.
  * @ubi: UBI device description object
  * @wrk: the work to schedule
@@ -751,13 +770,7 @@ repeat:
 static void schedule_ubi_work(struct ubi_device *ubi, struct ubi_work *wrk)
 {
 	down_read(&ubi->work_sem);
-	spin_lock(&ubi->wl_lock);
-	list_add_tail(&wrk->list, &ubi->works);
-	ubi_assert(ubi->works_count >= 0);
-	ubi->works_count += 1;
-	if (ubi->thread_enabled && !ubi_dbg_is_bgt_disabled(ubi))
-		wake_up_process(ubi->bgt_thread);
-	spin_unlock(&ubi->wl_lock);
+	__schedule_ubi_work(ubi, wrk);
 	up_read(&ubi->work_sem);
 }
 
@@ -1157,7 +1170,7 @@ out_cancel:
  * if yes. This function returns zero in case of success and a negative error
  * code in case of failure.
  */
-static int ensure_wear_leveling(struct ubi_device *ubi)
+static int ensure_wear_leveling(struct ubi_device *ubi, int nested)
 {
 	int err = 0;
 	struct ubi_wl_entry *e1;
@@ -1203,7 +1216,10 @@ static int ensure_wear_leveling(struct ubi_device *ubi)
 	}
 
 	wrk->func = &wear_leveling_worker;
-	schedule_ubi_work(ubi, wrk);
+	if (nested)
+		__schedule_ubi_work(ubi, wrk);
+	else
+		schedule_ubi_work(ubi, wrk);
 	return err;
 
 out_cancel:
@@ -1256,6 +1272,9 @@ static int erase_worker(struct ubi_device *ubi, struct ubi_work *wl_wrk,
 		 * protected physical eraseblocks.
 		 */
 		serve_prot_queue(ubi);
+
+		/* And take care about wear-leveling */
+		ensure_wear_leveling(ubi, 1);
 		return err;
 	}
 
@@ -1479,7 +1498,7 @@ retry:
 	 * Technically scrubbing is the same as wear-leveling, so it is done
 	 * by the WL worker.
 	 */
-	return ensure_wear_leveling(ubi);
+	return ensure_wear_leveling(ubi, 0);
 }
 
 /**
@@ -1748,7 +1767,7 @@ int ubi_wl_init(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	ubi->rsvd_pebs += WL_RESERVED_PEBS;
 
 	/* Schedule wear-leveling if needed */
-	err = ensure_wear_leveling(ubi);
+	err = ensure_wear_leveling(ubi, 0);
 	if (err)
 		goto out_free;
 
