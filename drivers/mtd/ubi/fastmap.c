@@ -1332,8 +1332,21 @@ static int invalidate_fastmap(struct ubi_device *ubi,
 			      struct ubi_fastmap_layout *fm)
 {
 	int ret, i;
+	struct ubi_vid_hdr *vh;
 
 	ret = erase_block(ubi, fm->e[0]->pnum);
+	if (ret < 0)
+		return ret;
+
+	vh = new_fm_vhdr(ubi, UBI_FM_SB_VOLUME_ID);
+	if (!vh)
+		return -ENOMEM;
+
+	/* deleting the current fastmap SB is not enough, an old SB may exist,
+	 * so create a (corrupted) SB such that fastmap will find it and fall
+	 * back to scanning mode in any case */
+	vh->sqnum = cpu_to_be64(ubi_next_sqnum(ubi));
+	ret = ubi_io_write_vid_hdr(ubi, fm->e[0]->pnum, vh);
 
 	for (i = 0; i < fm->used_blocks; i++)
 		ubi_wl_put_fm_peb(ubi, fm->e[i], fm->to_be_tortured[i]);
