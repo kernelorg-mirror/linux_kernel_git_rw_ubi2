@@ -707,49 +707,6 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 	if (max_sqnum > ai->max_sqnum)
 		ai->max_sqnum = max_sqnum;
 
-	list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &used, u.list) {
-		list_del(&tmp_aeb->u.list);
-		ubi_msg("moving PEB from used to erase: %i", tmp_aeb->pnum);
-		add_aeb(ai, &ai->erase, tmp_aeb->pnum, tmp_aeb->ec, 0);
-		kmem_cache_free(ai->aeb_slab_cache, tmp_aeb);
-	}
-
-	/*
-	 * Sort out dups. We are allowed to have duplicates here because
-	 * the fastmap can be written without refilling all pools.
-	 * E.g. If PEB X is in a pool fastmap may detect it as empty and
-	 * puts it into the free list. But ff PEB X is in the pool, get's
-	 * used and returned (e.g. by schedule_erase()) it remains in
-	 * the erase or free list too.
-	 * We could also sort out these dups while creating the fastmap.
-	 */
-	if (list_empty(&free))
-		goto out;
-
-	list_for_each_entry(aeb, &ai->free, u.list) {
-		list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &free, u.list) {
-			if (aeb->pnum == tmp_aeb->pnum) {
-				aeb->scrub = tmp_aeb->scrub;
-				aeb->ec = tmp_aeb->ec;
-				list_del(&tmp_aeb->u.list);
-				kfree(tmp_aeb);
-				continue;
-			}
-		}
-	}
-
-	list_for_each_entry(aeb, &ai->erase, u.list) {
-		list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &free, u.list) {
-			if (aeb->pnum == tmp_aeb->pnum) {
-				aeb->scrub = tmp_aeb->scrub;
-				aeb->ec = tmp_aeb->ec;
-				list_del(&tmp_aeb->u.list);
-				kfree(tmp_aeb);
-				continue;
-			}
-		}
-	}
-
 	list_for_each_entry_safe(tmp_aeb, _tmp_aeb, &free, u.list) {
 		list_del(&tmp_aeb->u.list);
 		list_add_tail(&tmp_aeb->u.list, &ai->free);
