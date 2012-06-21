@@ -1362,12 +1362,20 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 	struct ubi_fastmap_layout *new_fm, *old_fm;
 	struct ubi_wl_entry *tmp_e;
 
-	if (ubi->ro_mode)
+	mutex_lock(&ubi->fm_mutex);
+
+	ubi_refill_pools(ubi);
+
+	if (ubi->ro_mode) {
+		mutex_unlock(&ubi->fm_mutex);
 		return 0;
+	}
 
 	new_fm = kzalloc(sizeof(*new_fm), GFP_KERNEL);
-	if (!new_fm)
+	if (!new_fm) {
+		mutex_unlock(&ubi->fm_mutex);
 		return -ENOMEM;
+	}
 
 	new_fm->size = sizeof(struct ubi_fm_hdr) + \
 			sizeof(struct ubi_fm_scan_pool) + \
@@ -1387,11 +1395,11 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				kfree(new_fm->e[i]);
 
 			kfree(new_fm);
+			mutex_unlock(&ubi->fm_mutex);
 			return -ENOMEM;
 		}
 	}
 
-	mutex_lock(&ubi->fm_mutex);
 	old_fm = ubi->fm;
 	ubi->fm = NULL;
 
