@@ -1214,7 +1214,7 @@ out_ai:
  */
 int ubi_attach(struct ubi_device *ubi, int force_scan)
 {
-	int err, i;
+	int err;
 	struct ubi_attach_info *ai;
 
 	ai = kzalloc(sizeof(struct ubi_attach_info), GFP_KERNEL);
