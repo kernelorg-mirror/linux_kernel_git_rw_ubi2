@@ -461,6 +461,26 @@ out:
 	return ret;
 }
 
+static int self_check_fastmap(struct ubi_attach_info *ai)
+{
+	struct ubi_ainf_peb *aeb;
+	struct ubi_ainf_volume *av;
+	struct rb_node *rb1, *rb2;
+	int n = 0;
+
+	list_for_each_entry(aeb, &ai->erase, u.list)
+		n++;
+
+	list_for_each_entry(aeb, &ai->free, u.list)
+		n++;
+
+	 ubi_rb_for_each_entry(rb1, av, &ai->volumes, rb)
+		ubi_rb_for_each_entry(rb2, aeb, &av->root, u.rb)
+			n++;
+
+	return n;
+}
+
 /**
  * ubi_attach_fastmap - creates ubi_attach_info from a fastmap.
  * @ubi: UBI device object
@@ -974,6 +994,19 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	if (ret) {
 		if (ret > 0)
 			ret = UBI_BAD_FASTMAP;
+		kfree(fm);
+		goto free_hdr;
+	}
+
+	/*
+	 * If fastmap is leaking PEBs (must not happen), raise a
+	 * fat warning and fall back to scanning mode.
+	 * We do this here because in ubi_wl_init() it's too late
+	 * and we cannot fall back to scanning.
+	 */
+	if (WARN_ON(self_check_fastmap(ai) != ubi->peb_count -
+		    ubi->bad_peb_count - used_blocks)) {
+		ret = UBI_BAD_FASTMAP;
 		kfree(fm);
 		goto free_hdr;
 	}
