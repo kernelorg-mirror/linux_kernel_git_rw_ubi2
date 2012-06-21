@@ -711,7 +711,7 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 		list_del(&tmp_aeb->u.list);
 		list_add_tail(&tmp_aeb->u.list, &ai->free);
 	}
-out:
+
 	return 0;
 
 fail_bad:
