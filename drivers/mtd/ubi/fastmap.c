@@ -1374,6 +1374,12 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 		return 0;
 	}
 
+	ret = ubi_ensure_anchor_pebs(ubi);
+	if (ret) {
+		mutex_unlock(&ubi->fm_mutex);
+		return ret;
+	}
+
 	new_fm = kzalloc(sizeof(*new_fm), GFP_KERNEL);
 	if (!new_fm) {
 		mutex_unlock(&ubi->fm_mutex);
