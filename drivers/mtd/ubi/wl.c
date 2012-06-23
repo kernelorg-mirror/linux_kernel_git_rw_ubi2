@@ -911,7 +911,7 @@ int ubi_wl_put_fm_peb(struct ubi_device *ubi, struct ubi_wl_entry *fm_e,
 	 */
 	if (!e) {
 		e = fm_e;
-		ubi_assert(e->ec);
+		ubi_assert(e->ec >= 0);
 		ubi->lookuptbl[pnum] = e;
 	} else {
 		e->ec = fm_e->ec;
