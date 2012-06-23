@@ -342,16 +342,18 @@ static void prot_queue_add(struct ubi_device *ubi, struct ubi_wl_entry *e)
 
 /**
  * find_wl_entry - find wear-leveling entry closest to certain erase counter.
+ * @ubi: UBI device description object
  * @root: the RB-tree where to look for
  * @diff: maximum possible difference from the smallest erase counter
  *
  * This function looks for a wear leveling entry with erase counter closest to
  * min + @diff, where min is the smallest erase counter.
  */
-static struct ubi_wl_entry *find_wl_entry(struct rb_root *root, int diff)
+static struct ubi_wl_entry *find_wl_entry(struct ubi_device *ubi, struct rb_root *root,
+					  int diff)
 {
 	struct rb_node *p;
-	struct ubi_wl_entry *e;
+	struct ubi_wl_entry *e, *prev_e = NULL;
 	int max;
 
 	e = rb_entry(rb_first(root), struct ubi_wl_entry, u.rb);
@@ -366,32 +368,48 @@ static struct ubi_wl_entry *find_wl_entry(struct rb_root *root, int diff)
 			p = p->rb_left;
 		else {
 			p = p->rb_right;
+			prev_e = e;
 			e = e1;
 		}
 	}
+
+	/* If no fastmap has been written and this WL entry can be used
+	 * as anchor PEB, hold it back and return the second best WL entry
+	 * such that fastmap can use the anchor PEB later. */
+	if (!ubi->fm && e->pnum < UBI_FM_MAX_START)
+		return prev_e;
 
 	return e;
 }
 
 /**
  * find_mean_wl_entry - find wear-leveling entry with medium erase counter.
+ * @ubi: UBI device description object
  * @root: the RB-tree where to look for
  *
  * This function looks for a wear leveling entry with medium erase counter,
  * but not greater or equivalent than the lowest erase counter plus
  * %WL_FREE_MAX_DIFF/2.
  */
-static struct ubi_wl_entry *find_mean_wl_entry(struct rb_root *root)
+static struct ubi_wl_entry *find_mean_wl_entry(struct ubi_device *ubi,
+					       struct rb_root *root)
 {
 	struct ubi_wl_entry *e, *first, *last;
 
 	first = rb_entry(rb_first(root), struct ubi_wl_entry, u.rb);
 	last = rb_entry(rb_last(root), struct ubi_wl_entry, u.rb);
 
-	if (last->ec - first->ec < WL_FREE_MAX_DIFF)
+	if (last->ec - first->ec < WL_FREE_MAX_DIFF) {
 		e = rb_entry(root->rb_node, struct ubi_wl_entry, u.rb);
+
+		/* If no fastmap has been written and this WL entry can be used
+		 * as anchor PEB, hold it back and return the second best WL entry
+		 * such that fastmap can use the anchor PEB later. */
+		if (e && !ubi->fm && e->pnum < UBI_FM_MAX_START)
+			e = rb_entry(rb_next(root->rb_node), struct ubi_wl_entry, u.rb);
+	}
 	else
-		e = find_wl_entry(root, WL_FREE_MAX_DIFF/2);
+		e = find_wl_entry(ubi, root, WL_FREE_MAX_DIFF/2);
 
 	return e;
 }
@@ -399,19 +417,16 @@ static struct ubi_wl_entry *find_mean_wl_entry(struct rb_root *root)
 /**
  * find_anchor_wl_entry - find wear-leveling entry to used as anchor PEB.
  * @root: the RB-tree where to look for
- * @max_pnum: highest possible pnum
  */
-static struct ubi_wl_entry *find_anchor_wl_entry(struct rb_root *root,
-						 int max_pnum)
+static struct ubi_wl_entry *find_anchor_wl_entry(struct rb_root *root)
 {
 	struct rb_node *p;
 	struct ubi_wl_entry *e, *victim = NULL;
 	int max_ec = UBI_MAX_ERASECOUNTER;
 
 	ubi_rb_for_each_entry(p, e, root, u.rb) {
-		if (e->pnum < max_pnum && e->ec < max_ec) {
+		if (e->pnum < UBI_FM_MAX_START && e->ec < max_ec) {
 			victim = e;
-			max_pnum = e->pnum;
 			max_ec = e->ec;
 		}
 	}
@@ -419,13 +434,13 @@ static struct ubi_wl_entry *find_anchor_wl_entry(struct rb_root *root,
 	return victim;
 }
 
-static int anchor_pebs_avalible(struct rb_root *root, int max_pnum)
+static int anchor_pebs_avalible(struct rb_root *root)
 {
 	struct rb_node *p;
 	struct ubi_wl_entry *e;
 
 	ubi_rb_for_each_entry(p, e, root, u.rb)
-		if (e->pnum < max_pnum)
+		if (e->pnum < UBI_FM_MAX_START)
 			return 1;
 
 	return 0;
@@ -434,14 +449,13 @@ static int anchor_pebs_avalible(struct rb_root *root, int max_pnum)
 /**
  * ubi_wl_get_fm_peb - find a physical erase block with a given maximal number.
  * @ubi: UBI device description object
- * @max_pnum: the highest acceptable erase block number
+ * @anchor: This PEB will be used as anchor PEB by fastmap
  *
  * The function returns a physical erase block with a given maximal number
  * and removes it from the wl subsystem.
- * If max_pnum is negative a PEB with a mean EC will be selected.
  * Must be called with wl_lock held!
  */
-struct ubi_wl_entry *ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum)
+struct ubi_wl_entry *ubi_wl_get_fm_peb(struct ubi_device *ubi, int anchor)
 {
 	struct ubi_wl_entry *e = NULL;
 
@@ -451,10 +465,10 @@ struct ubi_wl_entry *ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum)
 		goto out;
 	}
 
-	if (max_pnum < 0)
-		e = find_mean_wl_entry(&ubi->free);
+	if (anchor)
+		e = find_anchor_wl_entry(&ubi->free);
 	else
-		e = find_anchor_wl_entry(&ubi->free, max_pnum);
+		e = find_mean_wl_entry(ubi, &ubi->free);
 
 	if (!e)
 		goto out;
@@ -494,7 +508,7 @@ retry:
 		goto retry;
 	}
 
-	e = find_mean_wl_entry(&ubi->free);
+	e = find_mean_wl_entry(ubi, &ubi->free);
 
 	self_check_in_wl_tree(ubi, e, &ubi->free);
 
@@ -547,7 +561,7 @@ static void refill_wl_pool(struct ubi_device *ubi)
 		if (!ubi->free.rb_node)
 			break;
 
-		e = find_wl_entry(&ubi->free, WL_FREE_MAX_DIFF);
+		e = find_wl_entry(ubi, &ubi->free, WL_FREE_MAX_DIFF);
 		self_check_in_wl_tree(ubi, e, &ubi->free);
 		rb_erase(&e->u.rb, &ubi->free);
 
@@ -595,8 +609,6 @@ int ubi_wl_get_peb(struct ubi_device *ubi)
 	struct ubi_fm_pool *pool = &ubi->fm_pool;
 	struct ubi_fm_pool *wl_pool = &ubi->fm_wl_pool;
 
-	mutex_lock(&ubi->fm_pool_mutex);
-
 	if (!pool->size || !wl_pool->size || pool->used == pool->size ||
 	    wl_pool->used == wl_pool->size)
 		ubi_update_fastmap(ubi);
@@ -610,8 +622,6 @@ int ubi_wl_get_peb(struct ubi_device *ubi)
 		prot_queue_add(ubi, ubi->lookuptbl[ret]);
 		spin_unlock(&ubi->wl_lock);
 	}
-
-	mutex_unlock(&ubi->fm_pool_mutex);
 
 	return ret;
 }
@@ -887,7 +897,7 @@ int ubi_wl_put_fm_peb(struct ubi_device *ubi, struct ubi_wl_entry *fm_e,
 	 */
 	if (!e) {
 		e = fm_e;
-		ubi_assert(e->ec);
+		ubi_assert(e->ec >= 0);
 		ubi->lookuptbl[pnum] = e;
 	} else {
 		e->ec = fm_e->ec;
@@ -950,10 +960,10 @@ static int wear_leveling_worker(struct ubi_device *ubi, struct ubi_work *wrk,
 
 	/* Check whether we need to produce an anchor PEB */
 	if (!anchor)
-		anchor = !anchor_pebs_avalible(&ubi->free, UBI_FM_MAX_START);
+		anchor = !anchor_pebs_avalible(&ubi->free);
 
 	if (anchor) {
-		e1 = find_anchor_wl_entry(&ubi->used, UBI_FM_MAX_START);
+		e1 = find_anchor_wl_entry(&ubi->used);
 		if (!e1)
 			goto out_cancel;
 		e2 = get_peb_for_wl(ubi);
@@ -1241,7 +1251,7 @@ static int ensure_wear_leveling(struct ubi_device *ubi, int nested)
 		 * %UBI_WL_THRESHOLD.
 		 */
 		e1 = rb_entry(rb_first(&ubi->used), struct ubi_wl_entry, u.rb);
-		e2 = find_wl_entry(&ubi->free, WL_FREE_MAX_DIFF);
+		e2 = find_wl_entry(ubi, &ubi->free, WL_FREE_MAX_DIFF);
 
 		if (!(e2->ec - e1->ec >= UBI_WL_THRESHOLD))
 			goto out_unlock;
