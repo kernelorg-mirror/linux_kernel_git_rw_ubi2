@@ -382,7 +382,6 @@ struct ubi_wl_entry;
  *
  * @fm: in-memory data structure of the currently used fastmap
  * @fm_pool: in-memory data structure of the fastmap pool
- * @fm_pool_mutex: serializes ubi_wl_get_peb()
  * @fm_mutex: serializes ubi_update_fastmap()
  * @fm_sem: allows ubi_update_fastmap() to block EBA table changes
  * @fm_work: fastmap work queue
@@ -486,7 +485,6 @@ struct ubi_device {
 	struct ubi_fm_pool fm_wl_pool;
 	struct rw_semaphore fm_sem;
 	struct mutex fm_mutex;
-	struct mutex fm_pool_mutex;
 	struct work_struct fm_work;
 	int attached_by_scanning;
 
