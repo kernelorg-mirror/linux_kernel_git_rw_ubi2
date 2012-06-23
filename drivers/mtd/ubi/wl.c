@@ -609,8 +609,6 @@ int ubi_wl_get_peb(struct ubi_device *ubi)
 	struct ubi_fm_pool *pool = &ubi->fm_pool;
 	struct ubi_fm_pool *wl_pool = &ubi->fm_wl_pool;
 
-	mutex_lock(&ubi->fm_pool_mutex);
-
 	if (!pool->size || !wl_pool->size || pool->used == pool->size ||
 	    wl_pool->used == wl_pool->size)
 		ubi_update_fastmap(ubi);
@@ -624,8 +622,6 @@ int ubi_wl_get_peb(struct ubi_device *ubi)
 		prot_queue_add(ubi, ubi->lookuptbl[ret]);
 		spin_unlock(&ubi->wl_lock);
 	}
-
-	mutex_unlock(&ubi->fm_pool_mutex);
 
 	return ret;
 }
