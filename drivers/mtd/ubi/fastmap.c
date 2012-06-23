@@ -1420,7 +1420,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 
 	for (i = 1; i < new_fm->used_blocks; i++) {
 		spin_lock(&ubi->wl_lock);
-		tmp_e = ubi_wl_get_fm_peb(ubi, -1);
+		tmp_e = ubi_wl_get_fm_peb(ubi, 0);
 		spin_unlock(&ubi->wl_lock);
 
 		if (!tmp_e) {
@@ -1439,7 +1439,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 	}
 
 	spin_lock(&ubi->wl_lock);
-	tmp_e = ubi_wl_get_fm_peb(ubi, UBI_FM_MAX_START);
+	tmp_e = ubi_wl_get_fm_peb(ubi, 1);
 	spin_unlock(&ubi->wl_lock);
 
 	if (old_fm) {
