@@ -417,19 +417,16 @@ static struct ubi_wl_entry *find_mean_wl_entry(struct ubi_device *ubi,
 /**
  * find_anchor_wl_entry - find wear-leveling entry to used as anchor PEB.
  * @root: the RB-tree where to look for
- * @max_pnum: highest possible pnum
  */
-static struct ubi_wl_entry *find_anchor_wl_entry(struct rb_root *root,
-						 int max_pnum)
+static struct ubi_wl_entry *find_anchor_wl_entry(struct rb_root *root)
 {
 	struct rb_node *p;
 	struct ubi_wl_entry *e, *victim = NULL;
 	int max_ec = UBI_MAX_ERASECOUNTER;
 
 	ubi_rb_for_each_entry(p, e, root, u.rb) {
-		if (e->pnum < max_pnum && e->ec < max_ec) {
+		if (e->pnum < UBI_FM_MAX_START && e->ec < max_ec) {
 			victim = e;
-			max_pnum = e->pnum;
 			max_ec = e->ec;
 		}
 	}
@@ -437,13 +434,13 @@ static struct ubi_wl_entry *find_anchor_wl_entry(struct rb_root *root,
 	return victim;
 }
 
-static int anchor_pebs_avalible(struct rb_root *root, int max_pnum)
+static int anchor_pebs_avalible(struct rb_root *root)
 {
 	struct rb_node *p;
 	struct ubi_wl_entry *e;
 
 	ubi_rb_for_each_entry(p, e, root, u.rb)
-		if (e->pnum < max_pnum)
+		if (e->pnum < UBI_FM_MAX_START)
 			return 1;
 
 	return 0;
@@ -452,14 +449,13 @@ static int anchor_pebs_avalible(struct rb_root *root, int max_pnum)
 /**
  * ubi_wl_get_fm_peb - find a physical erase block with a given maximal number.
  * @ubi: UBI device description object
- * @max_pnum: the highest acceptable erase block number
+ * @anchor: This PEB will be used as anchor PEB by fastmap
  *
  * The function returns a physical erase block with a given maximal number
  * and removes it from the wl subsystem.
- * If max_pnum is negative a PEB with a mean EC will be selected.
  * Must be called with wl_lock held!
  */
-struct ubi_wl_entry *ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum)
+struct ubi_wl_entry *ubi_wl_get_fm_peb(struct ubi_device *ubi, int anchor)
 {
 	struct ubi_wl_entry *e = NULL;
 
@@ -469,10 +465,10 @@ struct ubi_wl_entry *ubi_wl_get_fm_peb(struct ubi_device *ubi, int max_pnum)
 		goto out;
 	}
 
-	if (max_pnum < 0)
-		e = find_mean_wl_entry(ubi, &ubi->free);
+	if (anchor)
+		e = find_anchor_wl_entry(&ubi->free);
 	else
-		e = find_anchor_wl_entry(&ubi->free, max_pnum);
+		e = find_mean_wl_entry(ubi, &ubi->free);
 
 	if (!e)
 		goto out;
@@ -968,10 +964,10 @@ static int wear_leveling_worker(struct ubi_device *ubi, struct ubi_work *wrk,
 
 	/* Check whether we need to produce an anchor PEB */
 	if (!anchor)
-		anchor = !anchor_pebs_avalible(&ubi->free, UBI_FM_MAX_START);
+		anchor = !anchor_pebs_avalible(&ubi->free);
 
 	if (anchor) {
-		e1 = find_anchor_wl_entry(&ubi->used, UBI_FM_MAX_START);
+		e1 = find_anchor_wl_entry(&ubi->used);
 		if (!e1)
 			goto out_cancel;
 		e2 = get_peb_for_wl(ubi);
