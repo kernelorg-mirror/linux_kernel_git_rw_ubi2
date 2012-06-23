@@ -1005,7 +1005,7 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	 * and we cannot fall back to scanning.
 	 */
 	if (WARN_ON(self_check_fastmap(ai) != ubi->peb_count -
-		    ubi->bad_peb_count - used_blocks)) {
+		    ai->bad_peb_count - used_blocks)) {
 		ret = UBI_BAD_FASTMAP;
 		kfree(fm);
 		goto free_hdr;
