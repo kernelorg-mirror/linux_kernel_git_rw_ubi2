@@ -218,12 +218,18 @@ struct ubi_volume_desc;
  * @to_be_tortured: if non-zero tortured this PEB
  * @size: size of the fastmap in bytes
  * @used_blocks: number of used PEBs
+ * @max_pool_size: maximal size of the user pool
+ * @max_wl_pool_size: maximal size of the pooly used by the WL sub-system
+ * @raw: the fastmap itself as byte array (only valid while attaching)
  */
 struct ubi_fastmap_layout {
 	struct ubi_wl_entry *e[UBI_FM_MAX_BLOCKS];
 	int to_be_tortured[UBI_FM_MAX_BLOCKS];
 	size_t size;
 	int used_blocks;
+	int max_pool_size;
+	int max_wl_pool_size;
+	void *raw;
 };
 
 /**

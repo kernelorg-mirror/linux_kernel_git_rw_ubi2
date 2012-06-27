@@ -455,11 +455,13 @@ struct ubi_fm_hdr {
  * struct ubi_fm_scan_pool - Fastmap pool PEBs to be scanned while attaching
  * @magic: pool magic numer (%UBI_FM_POOL_MAGIC)
  * @size: current pool size
+ * @max_size: maximal pool size
  * @pebs: an array containing the location of all PEBs in this pool
  */
 struct ubi_fm_scan_pool {
 	__be32 magic;
-	__be32 size;
+	__be16 size;
+	__be16 max_size;
 	__be32 pebs[UBI_FM_MAX_POOL_SIZE];
 	__be32 padding[4];
 } __packed;
