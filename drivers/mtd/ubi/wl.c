@@ -483,13 +483,13 @@ out:
 }
 
 /**
- * __ubi_wl_get_peb - get a physical eraseblock.
+ * __wl_get_peb - get a physical eraseblock.
  * @ubi: UBI device description object
  *
  * This function returns a physical eraseblock in case of success and a
  * negative error code in case of failure. Might sleep.
  */
-static int __ubi_wl_get_peb(struct ubi_device *ubi)
+static int __wl_get_peb(struct ubi_device *ubi)
 {
 	int err;
 	struct ubi_wl_entry *e;
@@ -585,7 +585,7 @@ static void refill_wl_user_pool(struct ubi_device *ubi)
 	return_unused_pool_pebs(ubi, pool);
 
 	for (pool->size = 0; pool->size < pool->max_size; pool->size++) {
-		pool->pebs[pool->size] = __ubi_wl_get_peb(ubi);
+		pool->pebs[pool->size] = __wl_get_peb(ubi);
 		if (pool->pebs[pool->size] < 0)
 			break;
 	}
@@ -604,7 +604,7 @@ void ubi_refill_pools(struct ubi_device *ubi)
 	spin_unlock(&ubi->wl_lock);
 }
 
-/* ubi_wl_get_peb - works exaclty like __ubi_wl_get_peb but keeps track of
+/* ubi_wl_get_peb - works exaclty like __wl_get_peb but keeps track of
  * the fastmap pool.
  */
 int ubi_wl_get_peb(struct ubi_device *ubi)
@@ -630,7 +630,7 @@ int ubi_wl_get_peb(struct ubi_device *ubi)
 	return ret;
 }
 
-/* get_peb_for_wl - returns a PEB to be used internally by the WL sub-system
+/* get_peb_for_wl - returns a PEB to be used internally by the WL sub-system.
  *
  * @ubi: UBI device description object
  */
@@ -818,7 +818,7 @@ static int erase_worker(struct ubi_device *ubi, struct ubi_work *wl_wrk,
 			int cancel);
 
 /**
- * ubi_is_erase_work - checks whether a work is erase work
+ * ubi_is_erase_work - checks whether a work is erase work.
  * @wrk: The work object to be checked
  */
 int ubi_is_erase_work(struct ubi_work *wrk)
@@ -862,6 +862,15 @@ static int schedule_erase(struct ubi_device *ubi, struct ubi_wl_entry *e,
 	return 0;
 }
 
+/**
+ * do_sync_erase - run the erase worker synchronously.
+ * @ubi: UBI device description object
+ * @e: the WL entry of the physical eraseblock to erase
+ * @vol_id: the volume ID that last used this PEB
+ * @lnum: the last used logical eraseblock number for the PEB
+ * @torture: if the physical eraseblock has to be tortured
+ *
+ */
 static int do_sync_erase(struct ubi_device *ubi, struct ubi_wl_entry *e,
 			 int vol_id, int lnum, int torture)
 {
@@ -884,8 +893,12 @@ static int do_sync_erase(struct ubi_device *ubi, struct ubi_wl_entry *e,
 /**
  * ubi_wl_put_fm_peb - returns a PEB used in a fastmap to the wear-leveling
  * sub-system.
- *
  * see: ubi_wl_put_peb()
+ *
+ * @ubi: UBI device description object
+ * @fm_e: physical eraseblock to return
+ * @lnum: the last used logical eraseblock number for the PEB
+ * @torture: if this physical eraseblock has to be tortured
  */
 int ubi_wl_put_fm_peb(struct ubi_device *ubi, struct ubi_wl_entry *fm_e,
 		      int lnum, int torture)
@@ -1229,6 +1242,7 @@ out_cancel:
 /**
  * ensure_wear_leveling - schedule wear-leveling if it is needed.
  * @ubi: UBI device description object
+ * @nested: set to non-zero if this function is called from UBI worker
  *
  * This function checks if it is time to start wear-leveling and schedules it
  * if yes. This function returns zero in case of success and a negative error
@@ -1295,6 +1309,10 @@ out_unlock:
 	return err;
 }
 
+/**
+ * ubi_ensure_anchor_pebs - schedule wear-leveling to produce an anchor PEB.
+ * @ubi: UBI device description object
+ */
 int ubi_ensure_anchor_pebs(struct ubi_device *ubi)
 {
 	struct ubi_work *wrk;

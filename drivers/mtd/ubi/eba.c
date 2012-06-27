@@ -1178,6 +1178,7 @@ out_unlock_leb:
 /**
  * print_rsvd_warning - warn about not having enough reserved PEBs.
  * @ubi: UBI device description object
+ * @ai: UBI attach info object
  *
  * This is a helper function for 'ubi_eba_init()' which is called when UBI
  * cannot reserve enough PEBs for bad block handling. This function makes a
@@ -1216,6 +1217,13 @@ static void print_rsvd_warning(struct ubi_device *ubi,
 			ubi->corr_peb_count);
 }
 
+/**
+ * self_check_eba - run a self check on the EBA table construected by fastmap.
+ *
+ * @ubi: UBI device description object
+ * @ai_fastmap: UBI attach info object created by fastmap
+ * @ai_scan: UBI attach info object created by scanning
+ */
 int self_check_eba(struct ubi_device *ubi, struct ubi_attach_info *ai_fastmap,
 		   struct ubi_attach_info *ai_scan)
 {
