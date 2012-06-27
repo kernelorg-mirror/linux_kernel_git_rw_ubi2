@@ -432,7 +432,8 @@ struct ubi_fm_sb {
  * struct ubi_fm_hdr - header of the fastmap data set
  * @magic: fastmap header magic number (%UBI_FM_HDR_MAGIC)
  * @free_peb_count: number of free PEBs known by this fastmap
- * @free_peb_count: number of used PEBs known by this fastmap
+ * @used_peb_count: number of used PEBs known by this fastmap
+ * @scrub_peb_count: number of to be scrubbed PEBs known by this fastmap
  * @bad_peb_count: number of bad PEBs known by this fastmap
  * @erase_peb_count: number of bad PEBs which have to be erased
  * @vol_count: number of UBI volumes known by this fastmap
@@ -500,7 +501,7 @@ struct ubi_fm_volhdr {
 
 /**
  * struct ubi_fm_eba - denotes an association beween a PEB and LEB
- * @magic EBA table magic number
+ * @magic: EBA table magic number
  * @reserved_pebs: number of table entries
  * @pnum: PEB number of LEB (LEB is the index)
  */

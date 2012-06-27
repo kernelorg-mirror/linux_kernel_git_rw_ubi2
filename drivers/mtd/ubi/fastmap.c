@@ -259,7 +259,7 @@ static int update_vol(struct ubi_device *ubi, struct ubi_attach_info *ai,
 }
 
 /**
- * process_pool_aeb - we found a non-empty PEB in a pool
+ * process_pool_aeb - we found a non-empty PEB in a pool.
  * @ubi: UBI device object
  * @ai: attach info object
  * @new_vh: the volume header derived from new_aeb
@@ -313,7 +313,7 @@ static int process_pool_aeb(struct ubi_device *ubi, struct ubi_attach_info *ai,
  * If fastmap detects a free PEB in the pool it has to check whether
  * this PEB has been unmapped after writing the fastmap.
  *
- * @ubi: UBI device object
+ * @ai: UBI attach info object
  * @pnum: The PEB to be unmapped
  */
 static void unmap_peb(struct ubi_attach_info *ai, int pnum)
@@ -338,13 +338,14 @@ static void unmap_peb(struct ubi_attach_info *ai, int pnum)
 }
 
 /**
- * scan_pool - scans a pool for changed (no longer empty PEBs)
+ * scan_pool - scans a pool for changed (no longer empty PEBs).
  * @ubi: UBI device object
  * @ai: attach info object
  * @pebs: an array of all PEB numbers in the to be scanned pool
  * @pool_size: size of the pool (number of entries in @pebs)
  * @max_sqnum: pointer to the maximal sequence number
  * @eba_orphans: list of PEBs which need to be scanned
+ * @free: list of PEBs which are most likely free (and go into @ai->free)
  */
 static int scan_pool(struct ubi_device *ubi, struct ubi_attach_info *ai,
 		     int *pebs, int pool_size, unsigned long long *max_sqnum,
@@ -484,6 +485,7 @@ static int self_check_fastmap(struct ubi_attach_info *ai)
 /**
  * ubi_attach_fastmap - creates ubi_attach_info from a fastmap.
  * @ubi: UBI device object
+ * @ai: UBI attach info object
  * @fm_raw: the fastmap it self as byte array
  * @fm_size: size of the fastmap in bytes
  */
@@ -791,7 +793,7 @@ out:
 }
 
 /**
- * ubi_scan_fastmap - scan the fastmap
+ * ubi_scan_fastmap - scan the fastmap.
  * @ubi: UBI device object
  * @ai: UBI attach info to be filled
  *
@@ -1047,7 +1049,7 @@ out:
 }
 
 /**
- * ubi_write_fastmap - writes a fastmap
+ * ubi_write_fastmap - writes a fastmap.
  * @ubi: UBI device object
  * @new_fm: the to be written fastmap
  */
@@ -1279,7 +1281,7 @@ out:
 }
 
 /**
- * erase_block - Manually erase a PEB
+ * erase_block - Manually erase a PEB.
  * @ubi: UBI device object
  * @pnum: PEB to be erased
  */
@@ -1324,7 +1326,7 @@ out:
 }
 
 /**
- * invalidate_fastmap - destroys a fastmap
+ * invalidate_fastmap - destroys a fastmap.
  * @ubi: UBI device object
  * @fm: the fastmap to be destroyed
  */

@@ -382,6 +382,8 @@ struct ubi_wl_entry;
  *
  * @fm: in-memory data structure of the currently used fastmap
  * @fm_pool: in-memory data structure of the fastmap pool
+ * @fm_wl_pool: in-memory data structure of the fastmap pool used by the WL
+ * 		sub-system
  * @fm_mutex: serializes ubi_update_fastmap()
  * @fm_sem: allows ubi_update_fastmap() to block EBA table changes
  * @fm_work: fastmap work queue

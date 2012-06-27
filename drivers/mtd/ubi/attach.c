@@ -750,7 +750,7 @@ struct ubi_ainf_peb *ubi_early_get_peb(struct ubi_device *ubi,
 /**
  * check_corruption - check the data area of PEB.
  * @ubi: UBI device description object
- * @vid_hrd: the (corrupted) VID header of this PEB
+ * @vid_hdr: the (corrupted) VID header of this PEB
  * @pnum: the physical eraseblock number to check
  *
  * This is a helper function which is used to distinguish between VID header
