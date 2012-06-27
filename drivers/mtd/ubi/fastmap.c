@@ -797,13 +797,6 @@ out:
  * @ubi: UBI device object
  * @ai: UBI attach info to be filled
  *
- * TODO: not urgent, but at some point - check the code with kernel doc and fix
- * its complaints.
- *
- * TODO: not urgent, but for consistency, follow the UBI/UBIFS style and put a
- * dot at the end of the first short description sentence (globally):
- *    ubi_scan_fastmap - scan the fastmap. (<-dot).
- *
  * TODO: not urgent, but it is desireble to document error codes in the header
  * comments and probably describe what the function does, if there is something
  * to say (globally).
