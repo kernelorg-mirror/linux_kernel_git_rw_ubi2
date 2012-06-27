@@ -884,10 +884,10 @@ static int do_sync_erase(struct ubi_device *ubi, struct ubi_wl_entry *e,
  * see: ubi_wl_put_peb()
  */
 int ubi_wl_put_fm_peb(struct ubi_device *ubi, struct ubi_wl_entry *fm_e,
-		      int torture)
+		      int lnum, int torture)
 {
 	struct ubi_wl_entry *e;
-	int pnum = fm_e->pnum;
+	int vol_id, pnum = fm_e->pnum;
 
 	dbg_wl("PEB %d", pnum);
 
@@ -912,7 +912,8 @@ int ubi_wl_put_fm_peb(struct ubi_device *ubi, struct ubi_wl_entry *fm_e,
 
 	spin_unlock(&ubi->wl_lock);
 
-	return schedule_erase(ubi, e, torture);
+	vol_id = lnum ? UBI_FM_DATA_VOLUME_ID : UBI_FM_SB_VOLUME_ID;
+	return schedule_erase(ubi, e, vol_id, lnum, torture);
 }
 
 /**
@@ -1183,7 +1184,7 @@ out_not_moved:
 	spin_unlock(&ubi->wl_lock);
 
 	ubi_free_vid_hdr(ubi, vid_hdr);
-	err = do_sync_erase(ubi, e2, vold_id, lnum, torture);
+	err = do_sync_erase(ubi, e2, vol_id, lnum, torture);
 	if (err) {
 		kmem_cache_free(ubi_wl_entry_slab, e2);
 		goto out_ro;
