@@ -462,7 +462,11 @@ out:
 	return ret;
 }
 
-static int self_check_fastmap(struct ubi_attach_info *ai)
+/**
+ * count_fastmap_pebs - Counts the PEBs found by fastmap.
+ * @ai: The UBI attach info object
+ */
+static int count_fastmap_pebs(struct ubi_attach_info *ai)
 {
 	struct ubi_ainf_peb *aeb;
 	struct ubi_ainf_volume *av;
@@ -1006,7 +1010,7 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	 * We do this here because in ubi_wl_init() it's too late
 	 * and we cannot fall back to scanning.
 	 */
-	if (WARN_ON(self_check_fastmap(ai) != ubi->peb_count -
+	if (WARN_ON(count_fastmap_pebs(ai) != ubi->peb_count -
 		    ai->bad_peb_count - used_blocks)) {
 		ret = UBI_BAD_FASTMAP;
 		kfree(fm);
