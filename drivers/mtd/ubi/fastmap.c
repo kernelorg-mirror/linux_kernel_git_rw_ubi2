@@ -1349,7 +1349,7 @@ static int invalidate_fastmap(struct ubi_device *ubi,
 	ret = ubi_io_write_vid_hdr(ubi, fm->e[0]->pnum, vh);
 
 	for (i = 0; i < fm->used_blocks; i++)
-		ubi_wl_put_fm_peb(ubi, fm->e[i], fm->to_be_tortured[i]);
+		ubi_wl_put_fm_peb(ubi, fm->e[i], i, fm->to_be_tortured[i]);
 
 	return ret;
 }
@@ -1428,7 +1428,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 			ubi_err("could not get any free erase block");
 
 			for (j = 1; j < i; j++)
-				ubi_wl_put_fm_peb(ubi, new_fm->e[j], 0);
+				ubi_wl_put_fm_peb(ubi, new_fm->e[j], j, 0);
 
 			ret = -ENOSPC;
 			goto err;
@@ -1438,7 +1438,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				int j;
 
 				for (j = 1; j < i; j++)
-					ubi_wl_put_fm_peb(ubi, new_fm->e[j], 0);
+					ubi_wl_put_fm_peb(ubi, new_fm->e[j], j, 0);
 
 				ubi_err("could not erase old fastmap PEB");
 				goto err;
@@ -1451,7 +1451,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 			new_fm->e[i]->ec = tmp_e->ec;
 
 			if (old_fm)
-				ubi_wl_put_fm_peb(ubi, old_fm->e[i],
+				ubi_wl_put_fm_peb(ubi, old_fm->e[i], i,
 						  old_fm->to_be_tortured[i]);
 		}
 	}
@@ -1469,7 +1469,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				ubi_err("could not erase old anchor PEB");
 
 				for (i = 1; i < new_fm->used_blocks; i++)
-					ubi_wl_put_fm_peb(ubi, new_fm->e[i], 0);
+					ubi_wl_put_fm_peb(ubi, new_fm->e[i], i, 0);
 				goto err;
 			}
 
@@ -1477,7 +1477,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 			new_fm->e[0]->ec = ret;
 		} else {
 			/* we've got a new anchor PEB, return the old one */
-			ubi_wl_put_fm_peb(ubi, old_fm->e[0],
+			ubi_wl_put_fm_peb(ubi, old_fm->e[0], 0,
 					  old_fm->to_be_tortured[0]);
 
 			new_fm->e[0]->pnum = tmp_e->pnum;
@@ -1489,7 +1489,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 			ubi_err("could not find any anchor PEB");
 
 			for (i = 1; i < new_fm->used_blocks; i++)
-				ubi_wl_put_fm_peb(ubi, new_fm->e[i], 0);
+				ubi_wl_put_fm_peb(ubi, new_fm->e[i], i, 0);
 
 			ret = -ENOSPC;
 			goto err;
