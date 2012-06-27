@@ -6,7 +6,6 @@ to the ubi-utils.git repository, to a separate branch at the beginning
 
 2. Implement power-cut emulation infrastructure similar to what is in UBIFS and
    test UBI + fastmap with it.
-3. Test the autoresize feature
 4. Test 'ubi_flush()'
 5. Test that the same UBI image works fine on both LE and BE machines. I guess
    we can do this using sime kind of emulators?
