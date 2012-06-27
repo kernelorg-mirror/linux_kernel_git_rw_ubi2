@@ -1261,6 +1261,14 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 	if (err)
 		goto out_ai;
 
+	if (ubi->fm) {
+		ubi->fm_pool.max_size = ubi->fm->max_pool_size;
+		ubi->fm_wl_pool.max_size = ubi->fm->max_wl_pool_size;
+
+		ubi_msg("fastmap pool size: %d", ubi->fm_pool.max_size);
+		ubi_msg("fastmap WL pool size: %d", ubi->fm_wl_pool.max_size);
+	}
+
 	err = ubi_wl_init(ubi, ai);
 	if (err)
 		goto out_vtbl;

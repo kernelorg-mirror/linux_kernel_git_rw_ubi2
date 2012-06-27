@@ -506,15 +506,14 @@ static int count_fastmap_pebs(struct ubi_attach_info *ai)
  * ubi_attach_fastmap - creates ubi_attach_info from a fastmap.
  * @ubi: UBI device object
  * @ai: UBI attach info object
- * @fm_raw: the fastmap it self as byte array
- * @fm_size: size of the fastmap in bytes
+ * @fm: the fastmap to be attached
  *
  * Returns 0 on success, UBI_BAD_FASTMAP if the found fastmap was unusable.
  * < 0 indicates an internal error.
  */
 static int ubi_attach_fastmap(struct ubi_device *ubi,
 			      struct ubi_attach_info *ai,
-			      void *fm_raw, size_t fm_size)
+			      struct ubi_fastmap_layout *fm)
 {
 	struct list_head used, eba_orphans, free;
 	struct ubi_ainf_volume *av;
@@ -526,9 +525,10 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 	struct ubi_fm_ec *fmec;
 	struct ubi_fm_volhdr *fmvhdr;
 	struct ubi_fm_eba *fm_eba;
-	int ret, i, j;
-	size_t fm_pos = 0;
+	int ret, i, j, pool_size, wl_pool_size;
+	size_t fm_pos = 0, fm_size = fm->size;
 	unsigned long long max_sqnum = 0;
+	void *fm_raw = fm->raw;
 
 	INIT_LIST_HEAD(&used);
 	INIT_LIST_HEAD(&free);
@@ -582,6 +582,34 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 	if (be32_to_cpu(fmpl2->magic) != UBI_FM_POOL_MAGIC) {
 		ubi_err("bad fastmap pool magic: 0x%x, expected: 0x%x",
 			be32_to_cpu(fmpl2->magic), UBI_FM_POOL_MAGIC);
+		goto fail_bad;
+	}
+
+	pool_size = be16_to_cpu(fmpl1->size);
+	wl_pool_size = be16_to_cpu(fmpl2->size);
+	fm->max_pool_size = be16_to_cpu(fmpl1->max_size);
+	fm->max_wl_pool_size = be16_to_cpu(fmpl2->max_size);
+
+	if (pool_size > UBI_FM_MAX_POOL_SIZE || pool_size < 0) {
+		ubi_err("bad pool size: %i", pool_size);
+		goto fail_bad;
+	}
+
+	if (wl_pool_size > UBI_FM_MAX_POOL_SIZE || wl_pool_size < 0) {
+		ubi_err("bad WL pool size: %i", wl_pool_size);
+		goto fail_bad;
+	}
+
+
+	if (fm->max_pool_size > UBI_FM_MAX_POOL_SIZE ||
+	    fm->max_pool_size < 0) {
+		ubi_err("bad maximal pool size: %i", fm->max_pool_size);
+		goto fail_bad;
+	}
+
+	if (fm->max_wl_pool_size > UBI_FM_MAX_POOL_SIZE ||
+	    fm->max_wl_pool_size < 0) {
+		ubi_err("bad maximal WL pool size: %i", fm->max_wl_pool_size);
 		goto fail_bad;
 	}
 
@@ -754,13 +782,13 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 		kfree(ech);
 	}
 
-	ret = scan_pool(ubi, ai, fmpl1->pebs, be32_to_cpu(fmpl1->size),
-			&max_sqnum, &eba_orphans, &free);
+	ret = scan_pool(ubi, ai, fmpl1->pebs, pool_size, &max_sqnum,
+			&eba_orphans, &free);
 	if (ret)
 		goto fail;
 
-	ret = scan_pool(ubi, ai, fmpl2->pebs, be32_to_cpu(fmpl2->size),
-			&max_sqnum, &eba_orphans, &free);
+	ret = scan_pool(ubi, ai, fmpl2->pebs, wl_pool_size, &max_sqnum,
+			&eba_orphans, &free);
 	if (ret)
 		goto fail;
 
@@ -771,6 +799,16 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 		list_del(&tmp_aeb->u.list);
 		list_add_tail(&tmp_aeb->u.list, &ai->free);
 	}
+
+	/*
+	 * If fastmap is leaking PEBs (must not happen), raise a
+	 * fat warning and fall back to scanning mode.
+	 * We do this here because in ubi_wl_init() it's too late
+	 * and we cannot fall back to scanning.
+	 */
+	if (WARN_ON(count_fastmap_pebs(ai) != ubi->peb_count -
+		    ai->bad_peb_count - fm->used_blocks))
+		goto fail_bad;
 
 	return 0;
 
@@ -1026,29 +1064,17 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 
 	fmsb->sqnum = sqnum;
 
-	ret = ubi_attach_fastmap(ubi, ai, fm_raw, fm_size);
+	fm->size = fm_size;
+	fm->used_blocks = used_blocks;
+	fm->raw = fm_raw;
+
+	ret = ubi_attach_fastmap(ubi, ai, fm);
 	if (ret) {
 		if (ret > 0)
 			ret = UBI_BAD_FASTMAP;
 		kfree(fm);
 		goto free_hdr;
 	}
-
-	/*
-	 * If fastmap is leaking PEBs (must not happen), raise a
-	 * fat warning and fall back to scanning mode.
-	 * We do this here because in ubi_wl_init() it's too late
-	 * and we cannot fall back to scanning.
-	 */
-	if (WARN_ON(count_fastmap_pebs(ai) != ubi->peb_count -
-		    ai->bad_peb_count - used_blocks)) {
-		ret = UBI_BAD_FASTMAP;
-		kfree(fm);
-		goto free_hdr;
-	}
-
-	fm->size = fm_size;
-	fm->used_blocks = used_blocks;
 
 	for (i = 0; i < used_blocks; i++) {
 		struct ubi_wl_entry *e;
@@ -1153,7 +1179,8 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 	fmpl1 = (struct ubi_fm_scan_pool *)(fm_raw + fm_pos);
 	fm_pos += sizeof(*fmpl1);
 	fmpl1->magic = cpu_to_be32(UBI_FM_POOL_MAGIC);
-	fmpl1->size = cpu_to_be32(ubi->fm_pool.size);
+	fmpl1->size = cpu_to_be16(ubi->fm_pool.size);
+	fmpl1->max_size = cpu_to_be16(ubi->fm_pool.max_size);
 
 	for (i = 0; i < ubi->fm_pool.size; i++)
 		fmpl1->pebs[i] = cpu_to_be32(ubi->fm_pool.pebs[i]);
@@ -1161,7 +1188,8 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 	fmpl2 = (struct ubi_fm_scan_pool *)(fm_raw + fm_pos);
 	fm_pos += sizeof(*fmpl2);
 	fmpl2->magic = cpu_to_be32(UBI_FM_POOL_MAGIC);
-	fmpl2->size = cpu_to_be32(ubi->fm_wl_pool.size);
+	fmpl2->size = cpu_to_be16(ubi->fm_wl_pool.size);
+	fmpl2->max_size = cpu_to_be16(ubi->fm_wl_pool.max_size);
 
 	for (i = 0; i < ubi->fm_wl_pool.size; i++)
 		fmpl2->pebs[i] = cpu_to_be32(ubi->fm_wl_pool.pebs[i]);
