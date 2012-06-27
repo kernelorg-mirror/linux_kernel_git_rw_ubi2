@@ -4,7 +4,6 @@ it is merged.
 For all or most of the items there we need to write a testcase. We can put it
 to the ubi-utils.git repository, to a separate branch at the beginning
 
-1. Test with a R/O MTD device: !(mtd->flags & MTD_WRITEABLE)
 2. Implement power-cut emulation infrastructure similar to what is in UBIFS and
    test UBI + fastmap with it.
 3. Test the autoresize feature
