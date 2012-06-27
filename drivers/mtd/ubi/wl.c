@@ -509,6 +509,10 @@ retry:
 	}
 
 	e = find_mean_wl_entry(ubi, &ubi->free);
+	if (!e) {
+		ubi_err("no free eraseblocks");
+		return -ENOSPC;
+	}
 
 	self_check_in_wl_tree(ubi, e, &ubi->free);
 
