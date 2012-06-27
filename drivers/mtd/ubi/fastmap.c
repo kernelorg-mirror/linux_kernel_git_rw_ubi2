@@ -668,7 +668,7 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 			goto fail_bad;
 
 		if (be32_to_cpu(fmvhdr->magic) != UBI_FM_VHDR_MAGIC) {
-			ubi_err("bad fastmap vol header magic: 0x%x, "
+			ubi_err("bad fastmap vol header magic: 0x%x, " \
 				"expected: 0x%x",
 				be32_to_cpu(fmvhdr->magic), UBI_FM_VHDR_MAGIC);
 			goto fail_bad;
@@ -694,7 +694,7 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 			goto fail_bad;
 
 		if (be32_to_cpu(fm_eba->magic) != UBI_FM_EBA_MAGIC) {
-			ubi_err("bad fastmap EBA header magic: 0x%x, "
+			ubi_err("bad fastmap EBA header magic: 0x%x, " \
 				"expected: 0x%x",
 				be32_to_cpu(fm_eba->magic), UBI_FM_EBA_MAGIC);
 			goto fail_bad;
@@ -766,7 +766,7 @@ static int ubi_attach_fastmap(struct ubi_device *ubi,
 
 			err = ubi_io_read_ec_hdr(ubi, tmp_aeb->pnum, ech, 0);
 			if (err && err != UBI_IO_BITFLIPS) {
-				ubi_err("unable to read EC header! PEB:%i "
+				ubi_err("unable to read EC header! PEB:%i " \
 					"err:%i", tmp_aeb->pnum, err);
 				ret = err > 0 ? UBI_BAD_FASTMAP : err;
 				kfree(ech);
@@ -1013,7 +1013,7 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 
 		if (i == 0) {
 			if (be32_to_cpu(vh->vol_id) != UBI_FM_SB_VOLUME_ID) {
-				ubi_err("bad fastmap anchor vol_id: 0x%x,"
+				ubi_err("bad fastmap anchor vol_id: 0x%x," \
 					" expected: 0x%x",
 					be32_to_cpu(vh->vol_id),
 					UBI_FM_SB_VOLUME_ID);
@@ -1024,7 +1024,7 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 			}
 		} else {
 			if (be32_to_cpu(vh->vol_id) != UBI_FM_DATA_VOLUME_ID) {
-				ubi_err("bad fastmap data vol_id: 0x%x,"
+				ubi_err("bad fastmap data vol_id: 0x%x," \
 					" expected: 0x%x",
 					be32_to_cpu(vh->vol_id),
 					UBI_FM_DATA_VOLUME_ID);
@@ -1040,7 +1040,7 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		ret = ubi_io_read(ubi, fm_raw + (ubi->leb_size * i), pnum,
 				  ubi->leb_start, ubi->leb_size);
 		if (ret && ret != UBI_IO_BITFLIPS) {
-			ubi_err("unable to read fastmap block# %i (PEB: %i, "
+			ubi_err("unable to read fastmap block# %i (PEB: %i, " \
 				"err: %i)", i, pnum, ret);
 			kfree(fmsb);
 			kfree(fm);
@@ -1305,7 +1305,8 @@ static int ubi_write_fastmap(struct ubi_device *ubi,
 	}
 
 	fmsb->data_crc = 0;
-	fmsb->data_crc = cpu_to_be32(crc32(UBI_CRC32_INIT, fm_raw, new_fm->size));
+	fmsb->data_crc = cpu_to_be32(crc32(UBI_CRC32_INIT, fm_raw,
+					   new_fm->size));
 
 	for (i = 1; i < new_fm->used_blocks; i++) {
 		dvhdr->sqnum = cpu_to_be64(ubi_next_sqnum(ubi));
@@ -1510,7 +1511,8 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				int j;
 
 				for (j = 1; j < i; j++)
-					ubi_wl_put_fm_peb(ubi, new_fm->e[j], j, 0);
+					ubi_wl_put_fm_peb(ubi, new_fm->e[j],
+							  j, 0);
 
 				ubi_err("could not erase old fastmap PEB");
 				goto err;
@@ -1541,7 +1543,8 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 				ubi_err("could not erase old anchor PEB");
 
 				for (i = 1; i < new_fm->used_blocks; i++)
-					ubi_wl_put_fm_peb(ubi, new_fm->e[i], i, 0);
+					ubi_wl_put_fm_peb(ubi, new_fm->e[i],
+							  i, 0);
 				goto err;
 			}
 

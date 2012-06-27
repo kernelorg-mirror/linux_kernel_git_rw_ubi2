@@ -349,8 +349,8 @@ static void prot_queue_add(struct ubi_device *ubi, struct ubi_wl_entry *e)
  * This function looks for a wear leveling entry with erase counter closest to
  * min + @diff, where min is the smallest erase counter.
  */
-static struct ubi_wl_entry *find_wl_entry(struct ubi_device *ubi, struct rb_root *root,
-					  int diff)
+static struct ubi_wl_entry *find_wl_entry(struct ubi_device *ubi,
+					  struct rb_root *root, int diff)
 {
 	struct rb_node *p;
 	struct ubi_wl_entry *e, *prev_e = NULL;
@@ -403,12 +403,12 @@ static struct ubi_wl_entry *find_mean_wl_entry(struct ubi_device *ubi,
 		e = rb_entry(root->rb_node, struct ubi_wl_entry, u.rb);
 
 		/* If no fastmap has been written and this WL entry can be used
-		 * as anchor PEB, hold it back and return the second best WL entry
-		 * such that fastmap can use the anchor PEB later. */
+		 * as anchor PEB, hold it back and return the second best
+		 * WL entry such that fastmap can use the anchor PEB later. */
 		if (e && !ubi->fm && e->pnum < UBI_FM_MAX_START)
-			e = rb_entry(rb_next(root->rb_node), struct ubi_wl_entry, u.rb);
-	}
-	else
+			e = rb_entry(rb_next(root->rb_node),
+				     struct ubi_wl_entry, u.rb);
+	} else
 		e = find_wl_entry(ubi, root, WL_FREE_MAX_DIFF/2);
 
 	return e;
@@ -997,8 +997,7 @@ static int wear_leveling_worker(struct ubi_device *ubi, struct ubi_work *wrk,
 		self_check_in_wl_tree(ubi, e1, &ubi->used);
 		rb_erase(&e1->u.rb, &ubi->used);
 		dbg_wl("anchor-move PEB %d to PEB %d", e1->pnum, e2->pnum);
-	}
-	else if (!ubi->scrub.rb_node) {
+	} else if (!ubi->scrub.rb_node) {
 		/*
 		 * Now pick the least worn-out used physical eraseblock and a
 		 * highly worn-out free physical eraseblock. If the erase
