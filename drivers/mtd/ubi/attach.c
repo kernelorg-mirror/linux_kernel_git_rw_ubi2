@@ -1301,14 +1301,6 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 	}
 
 	destroy_ai(ubi, ai);
-
-	/* TODO: UBI auto formats the flash if it is empty (see ubi->is_empty).
-	 * It is currently done so that every sub-system writes initializes its
-	 * own stuff. Well, now it is only the vtbl sub-system - it creates
-	 * empty volume table. And this is why we have "early" function for
-	 * getting free PEBs. Fastmap should do the same - so I guess it is
-	 * good to do it somewhere here. Also, we need to re-create the fastmap
-	 * on-flash data-structures if they were corrupted. */
 	return 0;
 
 out_wl:
