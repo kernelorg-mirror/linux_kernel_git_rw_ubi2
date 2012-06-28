@@ -91,7 +91,6 @@
 
 static int self_check_ai(struct ubi_device *ubi, struct ubi_attach_info *ai);
 static void destroy_ai(struct ubi_device *ubi, struct ubi_attach_info *ai);
-static struct ubi_attach_info *new_ai(void);
 
 /* Temporary variables used during scanning */
 static struct ubi_ec_hdr *ech;
@@ -1216,6 +1215,22 @@ out_ai:
 	return err;
 }
 
+static struct ubi_attach_info *alloc_ai(void)
+{
+	static struct ubi_attach_info *ai;
+
+	ai = kzalloc(sizeof(struct ubi_attach_info), GFP_KERNEL);
+	if (ai) {
+		INIT_LIST_HEAD(&ai->corr);
+		INIT_LIST_HEAD(&ai->free);
+		INIT_LIST_HEAD(&ai->erase);
+		INIT_LIST_HEAD(&ai->alien);
+		ai->volumes = RB_ROOT;
+	}
+
+	return ai;
+}
+
 /**
  * ubi_attach - attach an MTD device.
  * @ubi: UBI device descriptor
@@ -1229,7 +1244,7 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 	int err;
 	struct ubi_attach_info *ai;
 
-	ai = new_ai();
+	ai = alloc_ai();
 	if (!ai)
 		return -ENOMEM;
 
@@ -1239,7 +1254,7 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 		err = ubi_scan_fastmap(ubi, ai);
 		if (err > 0) {
 			destroy_ai(ubi, ai);
-			ai = new_ai();
+			ai = alloc_ai();
 			if (!ai)
 				return -ENOMEM;
 
@@ -1279,7 +1294,7 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 
 	if (ubi->fm && ubi->dbg->chk_gen) {
 		struct ubi_attach_info *scan_ai;
-		scan_ai = new_ai();
+		scan_ai = alloc_ai();
 		if (!scan_ai)
 			goto out_ai;
 
@@ -1393,24 +1408,6 @@ static void destroy_ai(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		kmem_cache_destroy(ai->aeb_slab_cache);
 
 	kfree(ai);
-}
-
-static struct ubi_attach_info *new_ai(void)
-{
-	static struct ubi_attach_info *ai;
-
-	ai = kzalloc(sizeof(struct ubi_attach_info), GFP_KERNEL);
-	if (!ai)
-		goto out;
-
-	INIT_LIST_HEAD(&ai->corr);
-	INIT_LIST_HEAD(&ai->free);
-	INIT_LIST_HEAD(&ai->erase);
-	INIT_LIST_HEAD(&ai->alien);
-	ai->volumes = RB_ROOT;
-
-out:
-	return ai;
 }
 
 /**
