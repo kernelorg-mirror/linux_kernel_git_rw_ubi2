@@ -1258,7 +1258,6 @@ static int scan_all(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	if (ai->ec_count)
 		ai->mean_ec = div_u64(ai->ec_sum, ai->ec_count);
 
-	/* TODO: if we attach by fastmap, we do not execute this? */
 	err = late_analysis(ubi, ai);
 	if (err)
 		goto out_vidh;
