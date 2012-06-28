@@ -1325,12 +1325,12 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 
 		scan_ai = alloc_ai();
 		if (!scan_ai)
-			goto out_ai;
+			goto out_wl;
 
 		err = scan_all(ubi, scan_ai);
 		if (err) {
 			kfree(scan_ai);
-			goto out_ai;
+			goto out_wl;
 		}
 
 		self_check_eba(ubi, ai, scan_ai);
