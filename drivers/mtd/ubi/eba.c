@@ -1223,7 +1223,9 @@ static void print_rsvd_warning(struct ubi_device *ubi,
  * @ai_fastmap: UBI attach info object created by fastmap
  * @ai_scan: UBI attach info object created by scanning
  *
- * TODO: what we do and what return.
+ * Returns < 0 in case of an internal error, 0 otherwise.
+ * If a bad EBA table entry was found it will be printed out and
+ * ubi_assert() triggers.
  */
 int self_check_eba(struct ubi_device *ubi, struct ubi_attach_info *ai_fastmap,
 		   struct ubi_attach_info *ai_scan)
@@ -1291,8 +1293,7 @@ int self_check_eba(struct ubi_device *ubi, struct ubi_attach_info *ai_fastmap,
 
 				ubi_err("LEB:%i:%i is PEB:%i instead of %i!",
 					vol->vol_id, i, fm_eba[i][j], scan_eba[i][j]);
-				/* TODO: no, please, return error instead */
-				BUG();
+				ubi_assert(0);
 			}
 		}
 	}

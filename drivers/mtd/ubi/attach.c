@@ -1333,8 +1333,11 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 			goto out_wl;
 		}
 
-		self_check_eba(ubi, ai, scan_ai);
+		err = self_check_eba(ubi, ai, scan_ai);
 		destroy_ai(ubi, scan_ai);
+
+		if (err)
+			goto out_wl;
 	}
 
 	destroy_ai(ubi, ai);
