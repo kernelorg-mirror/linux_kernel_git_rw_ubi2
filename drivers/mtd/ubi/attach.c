@@ -1164,10 +1164,9 @@ static void destroy_av(struct ubi_attach_info *ai, struct ubi_ainf_volume *av)
 
 /**
  * destroy_ai - destroy attaching information.
- * @ubi: UBI device object
  * @ai: attaching information
  */
-static void destroy_ai(struct ubi_device *ubi, struct ubi_attach_info *ai)
+static void destroy_ai(struct ubi_attach_info *ai)
 {
 	struct ubi_ainf_peb *aeb, *aeb_tmp;
 	struct ubi_ainf_volume *av;
@@ -1300,7 +1299,7 @@ out_vidh:
 out_ech:
 	kfree(ech);
 out_ai:
-	destroy_ai(ubi, ai);
+	destroy_ai(ai);
 	return err;
 }
 
@@ -1353,7 +1352,7 @@ out_vidh:
 out_ech:
 	kfree(ech);
 out_ai:
-	destroy_ai(ubi, ai);
+	destroy_ai(ai);
 	return err;
 }
 static struct ubi_attach_info *alloc_ai(void)
@@ -1403,7 +1402,7 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 		err = scan_fast(ubi, ai);
 		if (err > 0) {
 			if (err != UBI_NO_FASTMAP) {
-				destroy_ai(ubi, ai);
+				destroy_ai(ai);
 				ai = alloc_ai();
 				if (!ai)
 					return -ENOMEM;
@@ -1449,13 +1448,13 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 		}
 
 		err = self_check_eba(ubi, ai, scan_ai);
-		destroy_ai(ubi, scan_ai);
+		destroy_ai(scan_ai);
 
 		if (err)
 			goto out_wl;
 	}
 
-	destroy_ai(ubi, ai);
+	destroy_ai(ai);
 	return 0;
 
 out_wl:
@@ -1464,7 +1463,7 @@ out_vtbl:
 	ubi_free_internal_volumes(ubi);
 	vfree(ubi->vtbl);
 out_ai:
-	destroy_ai(ubi, ai);
+	destroy_ai(ai);
 	return err;
 }
 
