@@ -1218,11 +1218,12 @@ static void print_rsvd_warning(struct ubi_device *ubi,
 }
 
 /**
- * self_check_eba - run a self check on the EBA table construected by fastmap.
- *
+ * self_check_eba - run a self check on the EBA table constructed by fastmap.
  * @ubi: UBI device description object
  * @ai_fastmap: UBI attach info object created by fastmap
  * @ai_scan: UBI attach info object created by scanning
+ *
+ * TODO: what we do and what return.
  */
 int self_check_eba(struct ubi_device *ubi, struct ubi_attach_info *ai_fastmap,
 		   struct ubi_attach_info *ai_scan)
@@ -1290,6 +1291,7 @@ int self_check_eba(struct ubi_device *ubi, struct ubi_attach_info *ai_fastmap,
 
 				ubi_err("LEB:%i:%i is PEB:%i instead of %i!",
 					vol->vol_id, i, fm_eba[i][j], scan_eba[i][j]);
+				/* TODO: no, please, return error instead */
 				BUG();
 			}
 		}
@@ -1306,7 +1308,6 @@ out_free:
 
 	kfree(scan_eba);
 	kfree(fm_eba);
-
 	return ret;
 }
 

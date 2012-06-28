@@ -89,6 +89,13 @@
 #include <linux/random.h>
 #include "ubi.h"
 
+/*
+ * TODO: please, no forward declarations. We do not use them in UBI code.
+ * Actually initially I did use them a lot, but when upstreaming, I was asked
+ * to remove. Please, follow this convention as well. Please, change globally.
+ * I mean, I am already used to that _all_ the code is upside-down, let's keep
+ * it that way, or re-structure all the code. :-)
+ */
 static int self_check_ai(struct ubi_device *ubi, struct ubi_attach_info *ai);
 static void destroy_ai(struct ubi_device *ubi, struct ubi_attach_info *ai);
 
@@ -1170,6 +1177,7 @@ static int scan_all(struct ubi_device *ubi, struct ubi_attach_info *ai)
 	if (ai->ec_count)
 		ai->mean_ec = div_u64(ai->ec_sum, ai->ec_count);
 
+	/* TODO: if we attach by fastmap, we do not execute this? */
 	err = late_analysis(ubi, ai);
 	if (err)
 		goto out_vidh;
@@ -1251,6 +1259,25 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 	if (force_scan)
 		err = scan_all(ubi, ai);
 	else {
+		/* TODO: this is a regression. If I have an old image, and I do
+		 * not want to use fastmap, I will be forced to waste time for
+		 * useless scan of 64 first eraseblocks. Not good.
+		 *
+		 * Can you teach ubi_scan_fastmap() to use 'scan_peb()'
+		 * function for scanning and build normal ai information? If it
+		 * finds fastmap - it can destroy the collected ai. If it does
+		 * not find, it returns ai. Then you just confinue scanning.
+		 *
+		 * I buess what we'll need is:
+		 * 1. scan_all() -> scan_range(..., int pnum1, int pnum2);
+		 * 2. ubi_scan_fastmap() returns the pnum of the last scanned
+		 *    eraseblock if fastmap was not found;
+		 *    Also 'ubi_scan_fastmap()' uses scan_peb() for scanning.
+		 * 3. You call 'scan_range(..., pnum, c->peb_cnt - 1)' and
+		 *    it continues.
+		 *
+		 * And no regressions.
+		 */
 		err = ubi_scan_fastmap(ubi, ai);
 		if (err > 0) {
 			destroy_ai(ubi, ai);
@@ -1276,6 +1303,7 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 	if (err)
 		goto out_ai;
 
+	/* TODO: Hmm why this code is not hidden in 'ubi_scan_fastmap()' ? */
 	if (ubi->fm) {
 		ubi->fm_pool.max_size = ubi->fm->max_pool_size;
 		ubi->fm_wl_pool.max_size = ubi->fm->max_wl_pool_size;
@@ -1294,6 +1322,7 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 
 	if (ubi->fm && ubi->dbg->chk_gen) {
 		struct ubi_attach_info *scan_ai;
+
 		scan_ai = alloc_ai();
 		if (!scan_ai)
 			goto out_ai;
