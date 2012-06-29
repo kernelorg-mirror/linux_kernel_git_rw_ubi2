@@ -67,6 +67,8 @@ static int __initdata mtd_devs;
 
 /* MTD devices specification parameters */
 static struct mtd_dev_param __initdata mtd_dev_param[UBI_MAX_DEVICES];
+/* UBI module parameter to enable fastmap automatically on non-fastmap images */
+static bool fm_auto;
 
 /* Root UBI "class" object (corresponds to '/<sysfs>/class/ubi/') */
 struct class *ubi_class;
@@ -899,7 +901,7 @@ int ubi_attach_mtd_dev(struct mtd_info *mtd, int ubi_num, int vid_hdr_offset)
 		ubi->fm_pool.max_size = UBI_FM_MIN_POOL_SIZE;
 
 	ubi->fm_wl_pool.max_size = UBI_FM_WL_POOL_SIZE;
-	ubi->fm_disabled = 1;
+	ubi->fm_disabled = !fm_auto;
 
 	ubi_msg("default fastmap pool size: %d", ubi->fm_pool.max_size);
 	ubi_msg("default fastmap WL pool size: %d", ubi->fm_wl_pool.max_size);
@@ -1391,6 +1393,10 @@ MODULE_PARM_DESC(mtd, "MTD devices to attach. Parameter format: "
 		      "Example 2: mtd=content,1984 mtd=4 - attach MTD device "
 		      "with name \"content\" using VID header offset 1984, and "
 		      "MTD device number 4 with default VID header offset.");
+
+module_param(fm_auto, bool, 000);
+MODULE_PARM_DESC(fm_auto, "Set this parameter to enable fastmap automatically "
+			  "on images without a fastmap.");
 
 MODULE_VERSION(__stringify(UBI_VERSION));
 MODULE_DESCRIPTION("UBI - Unsorted Block Images");

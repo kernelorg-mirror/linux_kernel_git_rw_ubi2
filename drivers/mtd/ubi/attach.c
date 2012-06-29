@@ -1394,7 +1394,7 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 	if (!ai)
 		return -ENOMEM;
 
-	if (force_scan || ubi->fm_disabled)
+	if (force_scan)
 		err = scan_all(ubi, ai, 0);
 	else {
 		err = scan_fast(ubi, ai);
