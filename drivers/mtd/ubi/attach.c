@@ -1305,6 +1305,11 @@ out_ech:
  * scan_fastmap - try to find a fastmap and attach from it.
  * @ubi: UBI device description object
  * @ai: attach info object
+ *
+ * Returns 0 on success, negative return values indicate an internal
+ * error.
+ * UBI_NO_FASTMAP denotes that no fastmap was found.
+ * UBI_BAD_FASTMAP denotes that the found fastmap was invalid.
  */
 static int scan_fast(struct ubi_device *ubi, struct ubi_attach_info *ai)
 {
