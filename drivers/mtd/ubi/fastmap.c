@@ -1392,7 +1392,7 @@ int ubi_update_fastmap(struct ubi_device *ubi)
 
 	ubi_refill_pools(ubi);
 
-	if (ubi->ro_mode) {
+	if (ubi->ro_mode || ubi->fm_disabled) {
 		mutex_unlock(&ubi->fm_mutex);
 		return 0;
 	}

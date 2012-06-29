@@ -376,7 +376,7 @@ static struct ubi_wl_entry *find_wl_entry(struct ubi_device *ubi,
 	/* If no fastmap has been written and this WL entry can be used
 	 * as anchor PEB, hold it back and return the second best WL entry
 	 * such that fastmap can use the anchor PEB later. */
-	if (!ubi->fm && e->pnum < UBI_FM_MAX_START)
+	if (!ubi->fm_disabled && !ubi->fm && e->pnum < UBI_FM_MAX_START)
 		return prev_e;
 
 	return e;
@@ -405,7 +405,8 @@ static struct ubi_wl_entry *find_mean_wl_entry(struct ubi_device *ubi,
 		/* If no fastmap has been written and this WL entry can be used
 		 * as anchor PEB, hold it back and return the second best
 		 * WL entry such that fastmap can use the anchor PEB later. */
-		if (e && !ubi->fm && e->pnum < UBI_FM_MAX_START)
+		if (e && !ubi->fm_disabled && !ubi->fm &&
+		    e->pnum < UBI_FM_MAX_START)
 			e = rb_entry(rb_next(root->rb_node),
 				     struct ubi_wl_entry, u.rb);
 	} else
