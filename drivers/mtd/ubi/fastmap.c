@@ -819,81 +819,27 @@ fail:
 }
 
 /**
- * ubi_find_fastmap - searches the first UBI_FM_MAX_START PEBs for the
- * fastmap super block.
- * @ubi: UBI device object
- * @fm_start: Pointer where the fastmap suber block PEB number will be stored.
- *
- * Returns:
- *  - 0 on success: (fm_start contains suber block PEB number)
- *  - < 0 on failure (fm_start is -1)
- */
-static int ubi_find_fastmap(struct ubi_device *ubi, int *fm_start)
-{
-	int i, ret = -ENOENT;
-	struct ubi_vid_hdr *vhdr;
-	unsigned long long max_sqnum = 0, sqnum;
-
-	vhdr = ubi_zalloc_vid_hdr(ubi, GFP_KERNEL);
-	if (!vhdr)
-		return -ENOMEM;
-
-	*fm_start = -1;
-	for (i = 0; i < UBI_FM_MAX_START; i++) {
-		if (ubi_io_is_bad(ubi, i))
-			continue;
-
-		ret = ubi_io_read_vid_hdr(ubi, i, vhdr, 0);
-		if (ret < 0)
-			goto out;
-		else if (ret > 0 && ret != UBI_IO_BITFLIPS)
-			continue;
-
-		if (be32_to_cpu(vhdr->vol_id) == UBI_FM_SB_VOLUME_ID) {
-			sqnum = be64_to_cpu(vhdr->sqnum);
-			dbg_bld("found a fastmap super block at PEB %i " \
-				"sqnum: %llu", i, sqnum);
-
-			if (sqnum > max_sqnum) {
-				max_sqnum = sqnum;
-				*fm_start = i;
-			}
-		}
-	}
-
-	if (*fm_start > -1)
-		ret = 0;
-out:
-	ubi_free_vid_hdr(ubi, vhdr);
-	return ret;
-}
-
-/**
  * ubi_scan_fastmap - scan the fastmap.
  * @ubi: UBI device object
  * @ai: UBI attach info to be filled
+ * @fm_anchor: The fastmap starts at this PEB
  *
  * Returns 0 on success, UBI_NO_FASTMAP if no fastmap was found,
  * UBI_BAD_FASTMAP if one was found but is not usable.
  * < 0 indicates an internal error.
  */
-int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
+int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai,
+		     int fm_anchor)
 {
 	struct ubi_fm_sb *fmsb;
 	struct ubi_vid_hdr *vh;
 	struct ubi_ec_hdr *ech;
 	struct ubi_fastmap_layout *fm;
-	int i, used_blocks, pnum, sb_pnum = 0, ret = 0;
+	int i, used_blocks, pnum, ret = 0;
 	void *fm_raw = NULL;
 	size_t fm_size;
 	__be32 crc, tmp_crc;
 	unsigned long long sqnum = 0;
-
-	ret = ubi_find_fastmap(ubi, &sb_pnum);
-	if (ret)
-		return ret;
-	if (sb_pnum == -1)
-		return UBI_NO_FASTMAP;
 
 	fmsb = kmalloc(sizeof(*fmsb), GFP_KERNEL);
 	if (!fmsb) {
@@ -908,7 +854,7 @@ int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai)
 		goto free_raw;
 	}
 
-	ret = ubi_io_read(ubi, fmsb, sb_pnum, ubi->leb_start, sizeof(*fmsb));
+	ret = ubi_io_read(ubi, fmsb, fm_anchor, ubi->leb_start, sizeof(*fmsb));
 	if (ret && ret != UBI_IO_BITFLIPS) {
 		kfree(fmsb);
 		kfree(fm);
