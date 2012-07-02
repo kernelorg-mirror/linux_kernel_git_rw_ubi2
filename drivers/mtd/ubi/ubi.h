@@ -216,20 +216,16 @@ struct ubi_volume_desc;
  * struct ubi_fastmap_layout - in-memory fastmap data structure.
  * @e: PEBs used by the current fastmap
  * @to_be_tortured: if non-zero tortured this PEB
- * @size: size of the fastmap in bytes
  * @used_blocks: number of used PEBs
  * @max_pool_size: maximal size of the user pool
  * @max_wl_pool_size: maximal size of the pooly used by the WL sub-system
- * @raw: the fastmap itself as byte array (only valid while attaching)
  */
 struct ubi_fastmap_layout {
 	struct ubi_wl_entry *e[UBI_FM_MAX_BLOCKS];
 	int to_be_tortured[UBI_FM_MAX_BLOCKS];
-	size_t size;
 	int used_blocks;
 	int max_pool_size;
 	int max_wl_pool_size;
-	void *raw;
 };
 
 /**
@@ -391,7 +387,9 @@ struct ubi_wl_entry;
  * @fm_pool: in-memory data structure of the fastmap pool
  * @fm_wl_pool: in-memory data structure of the fastmap pool used by the WL
  * 		sub-system
- * @fm_mutex: serializes ubi_update_fastmap()
+ * @fm_mutex: serializes ubi_update_fastmap() and protects @fm_buf
+ * @fm_buf: vmalloc()'d buffer which holds the raw fastmap
+ * @fm_size: fastmap size in bytes
  * @fm_sem: allows ubi_update_fastmap() to block EBA table changes
  * @fm_work: fastmap work queue
  *
@@ -493,6 +491,8 @@ struct ubi_device {
 	struct ubi_fm_pool fm_wl_pool;
 	struct rw_semaphore fm_sem;
 	struct mutex fm_mutex;
+	void *fm_buf;
+	size_t fm_size;
 	struct work_struct fm_work;
 
 	/* Wear-leveling sub-system's stuff */
@@ -817,6 +817,7 @@ int ubi_compare_lebs(struct ubi_device *ubi, const struct ubi_ainf_peb *aeb,
 		      int pnum, const struct ubi_vid_hdr *vid_hdr);
 
 /* fastmap.c */
+size_t ubi_calc_fm_size(struct ubi_device *ubi);
 int ubi_update_fastmap(struct ubi_device *ubi);
 int ubi_scan_fastmap(struct ubi_device *ubi, struct ubi_attach_info *ai, int fm_anchor);
 
