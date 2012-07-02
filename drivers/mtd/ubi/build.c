@@ -1394,7 +1394,7 @@ MODULE_PARM_DESC(mtd, "MTD devices to attach. Parameter format: "
 		      "with name \"content\" using VID header offset 1984, and "
 		      "MTD device number 4 with default VID header offset.");
 
-module_param(fm_auto, bool, 000);
+module_param(fm_auto, bool, 0644);
 MODULE_PARM_DESC(fm_auto, "Set this parameter to enable fastmap automatically "
 			  "on images without a fastmap.");
 
