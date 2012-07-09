@@ -271,10 +271,10 @@ static int produce_free_peb(struct ubi_device *ubi)
 
 		dbg_wl("do one work synchronously");
 		err = do_work(ubi);
-		if (err)
-			return err;
 
 		spin_lock(&ubi->wl_lock);
+		if (err)
+			return err;
 	}
 
 	return 0;
