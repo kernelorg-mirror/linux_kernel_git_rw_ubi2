@@ -376,7 +376,8 @@ static struct ubi_wl_entry *find_wl_entry(struct ubi_device *ubi,
 	/* If no fastmap has been written and this WL entry can be used
 	 * as anchor PEB, hold it back and return the second best WL entry
 	 * such that fastmap can use the anchor PEB later. */
-	if (!ubi->fm_disabled && !ubi->fm && e->pnum < UBI_FM_MAX_START)
+	if (prev_e && !ubi->fm_disabled &&
+	    !ubi->fm && e->pnum < UBI_FM_MAX_START)
 		return prev_e;
 
 	return e;
