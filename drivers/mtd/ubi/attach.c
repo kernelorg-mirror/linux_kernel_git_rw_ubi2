@@ -810,6 +810,8 @@ out_unlock:
  * @ubi: UBI device description object
  * @ai: attaching information
  * @pnum: the physical eraseblock number
+ * @vid: The volume ID of the found volume will be stored in this pointer
+ * @sqnum: The sqnum of the found volume will be stored in this pointer
  *
  * This function reads UBI headers of PEB @pnum, checks them, and adds
  * information about this PEB to the corresponding list or RB-tree in the
@@ -1223,6 +1225,7 @@ static void destroy_ai(struct ubi_attach_info *ai)
  * scan_all - scan entire MTD device.
  * @ubi: UBI device description object
  * @ai: attach info object
+ * @start: start scanning at this PEB
  *
  * This function does full scanning of an MTD device and returns complete
  * information about it in form of a "struct ubi_attach_info" object. In case

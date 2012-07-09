@@ -218,7 +218,7 @@ struct ubi_volume_desc;
  * @to_be_tortured: if non-zero tortured this PEB
  * @used_blocks: number of used PEBs
  * @max_pool_size: maximal size of the user pool
- * @max_wl_pool_size: maximal size of the pooly used by the WL sub-system
+ * @max_wl_pool_size: maximal size of the pool used by the WL sub-system
  */
 struct ubi_fastmap_layout {
 	struct ubi_wl_entry *e[UBI_FM_MAX_BLOCKS];
