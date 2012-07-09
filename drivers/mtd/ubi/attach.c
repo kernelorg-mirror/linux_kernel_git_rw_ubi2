@@ -1448,7 +1448,7 @@ int ubi_attach(struct ubi_device *ubi, int force_scan)
 
 		err = scan_all(ubi, scan_ai, 0);
 		if (err) {
-			kfree(scan_ai);
+			destroy_ai(scan_ai);
 			goto out_wl;
 		}
 
